@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Transaction, Category } from '../types/finance'
+import type { Transaction, Category, RecurringTransaction } from '../types/finance'
 
 // ── Transactions ─────────────────────────────────────────────
 
@@ -91,6 +91,49 @@ export async function updateCategory(cat: Category): Promise<void> {
 
 export async function deleteCategory(id: string): Promise<void> {
   const { error } = await supabase.from('categories').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ── Recurring Transactions ───────────────────────────────────
+
+export async function fetchRecurring(): Promise<RecurringTransaction[]> {
+  const { data, error } = await supabase
+    .from('recurring_transactions')
+    .select('id, amount, category, description, day_of_month, active')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    amount: r.amount,
+    category: r.category,
+    description: r.description,
+    dayOfMonth: r.day_of_month,
+    active: r.active,
+  }))
+}
+
+export async function insertRecurring(r: RecurringTransaction): Promise<void> {
+  const { error } = await supabase.from('recurring_transactions').insert({
+    id: r.id,
+    amount: r.amount,
+    category: r.category,
+    description: r.description,
+    day_of_month: r.dayOfMonth,
+    active: r.active,
+  })
+  if (error) throw error
+}
+
+export async function updateRecurring(r: RecurringTransaction): Promise<void> {
+  const { error } = await supabase
+    .from('recurring_transactions')
+    .update({ amount: r.amount, category: r.category, description: r.description, day_of_month: r.dayOfMonth, active: r.active })
+    .eq('id', r.id)
+  if (error) throw error
+}
+
+export async function deleteRecurring(id: string): Promise<void> {
+  const { error } = await supabase.from('recurring_transactions').delete().eq('id', id)
   if (error) throw error
 }
 

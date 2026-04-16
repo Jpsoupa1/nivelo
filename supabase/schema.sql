@@ -81,7 +81,7 @@ create table if not exists public.transactions (
   category    text not null,
   description text not null,
   date        timestamptz not null,
-  source      text check (source in ('manual', 'ai', 'webhook')) not null,
+  source      text check (source in ('manual', 'ai', 'webhook', 'recurring')) not null,
   status      text check (status in ('pending', 'confirmed', 'failed')) not null,
   created_at  timestamptz default now() not null
 );

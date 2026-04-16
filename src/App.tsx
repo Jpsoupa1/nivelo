@@ -5,6 +5,8 @@ import { Sidebar } from './components/layout/Sidebar'
 import { DashboardView } from './components/views/DashboardView'
 import { ChatView } from './components/views/ChatView'
 import { CategoriesView } from './components/views/CategoriesView'
+import { RecurringView } from './components/views/RecurringView'
+import { ImportView } from './components/views/ImportView'
 import { AuthView } from './components/views/AuthView'
 import { LandingPage } from './components/views/LandingPage'
 import { buildTransaction } from './services/nlpParser'
@@ -17,8 +19,13 @@ import {
   updateCategory,
   deleteCategory,
   seedDefaultCategories,
+  fetchRecurring,
+  insertRecurring,
+  updateRecurring,
+  deleteRecurring,
 } from './services/database'
-import type { Transaction, Category, AppView } from './types/finance'
+import { getPendingRecurring } from './services/recurringEngine'
+import type { Transaction, Category, RecurringTransaction, AppView } from './types/finance'
 
 type Screen = 'landing' | 'login' | 'signup'
 
@@ -28,20 +35,28 @@ function FinanceApp() {
   const [state, dispatch] = useReducer(financeReducer, initialState)
   const [activeView, setActiveView] = useState<AppView>('dashboard')
   const [dataLoading, setDataLoading] = useState(false)
+  const [recurrings, setRecurrings] = useState<RecurringTransaction[]>([])
 
   // Load user data on login
   useEffect(() => {
     if (!user) return
 
     setDataLoading(true)
-    Promise.all([fetchTransactions(), fetchCategories()])
-      .then(async ([transactions, categories]) => {
-        // Seed default categories for brand-new users
-        if (categories.length === 0) {
-          await seedDefaultCategories(DEFAULT_CATEGORIES)
-          dispatch({ type: 'LOAD_DATA', payload: { transactions, categories: DEFAULT_CATEGORIES } })
-        } else {
-          dispatch({ type: 'LOAD_DATA', payload: { transactions, categories } })
+    Promise.all([fetchTransactions(), fetchCategories(), fetchRecurring()])
+      .then(async ([transactions, categories, recs]) => {
+        const finalCategories = categories.length === 0
+          ? (await seedDefaultCategories(DEFAULT_CATEGORIES), DEFAULT_CATEGORIES)
+          : categories
+
+        dispatch({ type: 'LOAD_DATA', payload: { transactions, categories: finalCategories } })
+        setRecurrings(recs)
+
+        // Fire any pending recurring transactions for the current month
+        const now = new Date()
+        const pending = getPendingRecurring(recs, transactions, now.getMonth() + 1, now.getFullYear())
+        for (const tx of pending) {
+          dispatch({ type: 'ADD_TRANSACTION', payload: tx })
+          await insertTransaction(tx)
         }
       })
       .catch(console.error)
@@ -87,6 +102,21 @@ function FinanceApp() {
 
   function handleSetLanguage(lang: import('./types/finance').Language) {
     dispatch({ type: 'SET_LANGUAGE', payload: lang })
+  }
+
+  async function handleAddRecurring(r: RecurringTransaction) {
+    setRecurrings((prev) => [...prev, r])
+    await insertRecurring(r)
+  }
+
+  async function handleUpdateRecurring(r: RecurringTransaction) {
+    setRecurrings((prev) => prev.map((x) => x.id === r.id ? r : x))
+    await updateRecurring(r)
+  }
+
+  async function handleDeleteRecurring(id: string) {
+    setRecurrings((prev) => prev.filter((x) => x.id !== id))
+    await deleteRecurring(id)
   }
 
   function handleSetPeriod(month: number, year: number) {
@@ -154,6 +184,28 @@ function FinanceApp() {
             onAdd={handleAddCategory}
             onUpdate={handleUpdateCategory}
             onDelete={handleDeleteCategory}
+          />
+        )}
+        {activeView === 'import' && (
+          <ImportView
+            categories={state.categories}
+            lang={state.language}
+            onImport={async (txs) => {
+              for (const tx of txs) {
+                dispatch({ type: 'ADD_TRANSACTION', payload: tx })
+                await insertTransaction(tx)
+              }
+            }}
+          />
+        )}
+        {activeView === 'recurring' && (
+          <RecurringView
+            recurrings={recurrings}
+            categories={state.categories}
+            lang={state.language}
+            onAdd={handleAddRecurring}
+            onUpdate={handleUpdateRecurring}
+            onDelete={handleDeleteRecurring}
           />
         )}
       </div>

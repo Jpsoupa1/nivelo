@@ -19,7 +19,7 @@ export interface Transaction {
   category: TransactionCategory
   description: string
   date: string            // ISO 8601
-  source: 'manual' | 'ai' | 'webhook'
+  source: 'manual' | 'ai' | 'webhook' | 'recurring'
   status: 'pending' | 'confirmed' | 'failed'
 }
 
@@ -85,7 +85,16 @@ export interface ParsedCommand {
   newCategory?: Category // set when auto-creation is needed
 }
 
-export type AppView = 'dashboard' | 'chat' | 'categories'
+export type AppView = 'dashboard' | 'chat' | 'categories' | 'recurring' | 'import'
+
+export interface RecurringTransaction {
+  id: string
+  amount: number        // signed: negative = expense
+  category: string
+  description: string
+  dayOfMonth: number    // 1–28
+  active: boolean
+}
 
 export interface SelectedPeriod {
   month: number // 1–12

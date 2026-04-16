@@ -4,6 +4,7 @@ import { KPICard } from '../molecules/KPICard'
 import { CashFlowChart } from '../organisms/CashFlowChart'
 import { SmartLedger } from '../organisms/SmartLedger'
 import { AllocationPanel } from '../organisms/AllocationPanel'
+import { BudgetAlerts } from '../organisms/BudgetAlerts'
 import { computeCashFlow } from '../../store/financeReducer'
 import { t } from '../../services/i18n'
 
@@ -43,6 +44,10 @@ export function DashboardView({ state, onUpdateTransaction, onSetPeriod }: Dashb
 
   const cashFlow = computeCashFlow(state.transactions)
 
+  const hasAlerts = allocations.some(
+    (a) => a.category.budgeted > 0 && a.spent / a.category.budgeted >= 0.8
+  )
+
   function shiftPeriod(delta: number) {
     const d = new Date(year, month - 1 + delta, 1)
     onSetPeriod(d.getMonth() + 1, d.getFullYear())
@@ -56,13 +61,23 @@ export function DashboardView({ state, onUpdateTransaction, onSetPeriod }: Dashb
       className="flex-1 p-4 grid gap-3 min-h-0"
       style={{
         gridTemplateColumns: 'repeat(4, 1fr)',
-        gridTemplateRows: '32px 120px minmax(0, 1fr) minmax(0, 1fr)',
-        gridTemplateAreas: `
-          "period  period  period  period"
-          "balance lastTx  lastTx  allocation"
-          "chart   chart   ledger  ledger"
-          "alloc   alloc   ledger  ledger"
-        `,
+        gridTemplateRows: hasAlerts
+          ? '32px auto 120px minmax(0, 1fr) minmax(0, 1fr)'
+          : '32px 120px minmax(0, 1fr) minmax(0, 1fr)',
+        gridTemplateAreas: hasAlerts
+          ? `
+            "period  period  period  period"
+            "alerts  alerts  alerts  alerts"
+            "balance lastTx  lastTx  allocation"
+            "chart   chart   ledger  ledger"
+            "alloc   alloc   ledger  ledger"
+          `
+          : `
+            "period  period  period  period"
+            "balance lastTx  lastTx  allocation"
+            "chart   chart   ledger  ledger"
+            "alloc   alloc   ledger  ledger"
+          `,
       }}
     >
       {/* Period selector */}
@@ -95,6 +110,13 @@ export function DashboardView({ state, onUpdateTransaction, onSetPeriod }: Dashb
           </button>
         )}
       </div>
+
+      {/* Budget Alerts */}
+      {hasAlerts && (
+        <div style={{ gridArea: 'alerts' }}>
+          <BudgetAlerts allocations={allocations} lang={state.language} />
+        </div>
+      )}
 
       {/* Balance KPI */}
       <div style={{ gridArea: 'balance' }}>
