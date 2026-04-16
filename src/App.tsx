@@ -6,6 +6,7 @@ import { DashboardView } from './components/views/DashboardView'
 import { ChatView } from './components/views/ChatView'
 import { CategoriesView } from './components/views/CategoriesView'
 import { AuthView } from './components/views/AuthView'
+import { LandingPage } from './components/views/LandingPage'
 import { buildTransaction } from './services/nlpParser'
 import {
   fetchTransactions,
@@ -19,8 +20,11 @@ import {
 } from './services/database'
 import type { Transaction, Category, AppView } from './types/finance'
 
+type Screen = 'landing' | 'login' | 'signup'
+
 function FinanceApp() {
   const { user, isLoading: authLoading } = useAuth()
+  const [screen, setScreen] = useState<Screen>('landing')
   const [state, dispatch] = useReducer(financeReducer, initialState)
   const [activeView, setActiveView] = useState<AppView>('dashboard')
   const [dataLoading, setDataLoading] = useState(false)
@@ -97,7 +101,22 @@ function FinanceApp() {
     )
   }
 
-  if (!user) return <AuthView />
+  if (!user) {
+    if (screen === 'landing') {
+      return (
+        <LandingPage
+          onSignUp={() => setScreen('signup')}
+          onLogin={() => setScreen('login')}
+        />
+      )
+    }
+    return (
+      <AuthView
+        initialMode={screen === 'signup' ? 'signup' : 'login'}
+        onBack={() => setScreen('landing')}
+      />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-primary text-white flex overflow-hidden" style={{ height: '100vh' }}>

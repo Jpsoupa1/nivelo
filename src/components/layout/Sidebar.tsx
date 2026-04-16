@@ -54,8 +54,8 @@ export function Sidebar({
             <Activity size={14} className="text-accent" />
           </div>
           <div>
-            <p className="text-sm font-semibold tracking-tight leading-none">AXIS</p>
-            <p className="text-[10px] text-muted mt-0.5">Autonomous Finance</p>
+            <p className="text-sm font-semibold tracking-tight leading-none">Nivelo</p>
+            <p className="text-[10px] text-muted mt-0.5">Finanças Inteligentes</p>
           </div>
         </div>
       </div>

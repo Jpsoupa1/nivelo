@@ -1,11 +1,16 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Activity, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
-export function AuthView() {
+interface AuthViewProps {
+  initialMode?: 'login' | 'signup'
+  onBack?: () => void
+}
+
+export function AuthView({ initialMode = 'login', onBack }: AuthViewProps) {
   const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [mode, setMode] = useState<'login' | 'signup'>(initialMode)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -44,14 +49,25 @@ export function AuthView() {
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="w-full max-w-sm"
       >
+        {/* Back */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-muted hover:text-white text-xs transition-colors mb-6"
+          >
+            <ArrowLeft size={13} />
+            Voltar
+          </button>
+        )}
+
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
           <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/20 flex items-center justify-center">
             <Activity size={18} className="text-accent" />
           </div>
           <div>
-            <p className="text-base font-semibold tracking-tight leading-none text-white">AXIS</p>
-            <p className="text-[11px] text-muted mt-0.5">Autonomous Finance</p>
+            <p className="text-base font-semibold tracking-tight leading-none text-white">Nivelo</p>
+            <p className="text-[11px] text-muted mt-0.5">Finanças Inteligentes</p>
           </div>
         </div>
 
@@ -158,7 +174,7 @@ export function AuthView() {
         </div>
 
         <p className="text-center text-[11px] text-muted/40 mt-4">
-          AXIS Lab · Personal Finance · v1.0.0
+          Nivelo · Finanças Inteligentes · v1.0.0
         </p>
       </motion.div>
     </div>

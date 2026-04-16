@@ -51,12 +51,12 @@ const STRINGS = {
     },
 
     chat: {
-      title:      'AXIS AI Assistant',
-      subtitle:   'Natural language finance — powered by n8n',
+      title:      'Nivelo AI Assistant',
+      subtitle:   'Natural language finance — powered by Nivelo',
       processing: 'Processing',
-      pipeline:   'Processing via n8n pipeline',
+      pipeline:   'Processing via Nivelo pipeline',
       placeholder:'Tell me about your finances...',
-      welcome:    'Hello. I am AXIS AI — your autonomous finance assistant. Tell me about your transactions or ask about your finances.\n\nTry: "Spent 50 on lunch" · "Received 3000 salary" · "How much do I have?"',
+      welcome:    'Hello. I am Nivelo AI — your intelligent finance assistant. Tell me about your transactions or ask about your finances.\n\nTry: "Spent 50 on lunch" · "Received 3000 salary" · "How much do I have?"',
       suggestions:['Spent 85 on groceries', 'Received 3000 salary', 'How much do I have?', 'Spent 30 on Housa', 'How much on food this month?'],
     },
 
@@ -143,12 +143,12 @@ const STRINGS = {
     },
 
     chat: {
-      title:      'AXIS Assistente IA',
-      subtitle:   'Finanças em linguagem natural — via n8n',
+      title:      'Nivelo Assistente IA',
+      subtitle:   'Finanças em linguagem natural — via Nivelo',
       processing: 'Processando',
-      pipeline:   'Processando via pipeline n8n',
+      pipeline:   'Processando via Nivelo',
       placeholder:'Me fale sobre suas finanças...',
-      welcome:    'Olá. Eu sou o AXIS AI — seu assistente financeiro autônomo. Me conte sobre suas transações ou pergunte sobre suas finanças.\n\nTente: "Gastei 50 no almoço" · "Recebi 3000 de salário" · "Quanto tenho?"',
+      welcome:    'Olá. Eu sou o Nivelo AI — seu assistente financeiro inteligente. Me conte sobre suas transações ou pergunte sobre suas finanças.\n\nTente: "Gastei 50 no almoço" · "Recebi 3000 de salário" · "Quanto tenho?"',
       suggestions:['Gastei 85 em mercado', 'Recebi 3000 de salário', 'Quanto tenho?', 'Gastei 30 em casa', 'Quanto gastei em comida?'],
     },
 

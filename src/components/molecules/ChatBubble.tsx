@@ -24,7 +24,7 @@ export function ChatBubble({ message }: ChatBubbleProps) {
       >
         {!isUser && (
           <span className="block text-[10px] font-medium text-accent/70 uppercase tracking-wider mb-1">
-            AXIS AI
+            Nivelo AI
           </span>
         )}
         {message.content}
