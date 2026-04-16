@@ -3,10 +3,10 @@ import {
   LayoutDashboard,
   MessageSquare,
   Tag,
-  Activity,
   ChevronRight,
   LogOut,
 } from 'lucide-react'
+import { NiveloLogoIcon } from '../atoms/NiveloLogo'
 import type { AppView, Language } from '../../types/finance'
 import { formatCurrency } from '../../utils/format'
 import { t } from '../../services/i18n'
@@ -50,8 +50,8 @@ export function Sidebar({
       {/* Logo */}
       <div className="px-4 py-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-accent/15 border border-accent/20 flex items-center justify-center">
-            <Activity size={14} className="text-accent" />
+          <div className="w-7 h-7 flex items-center justify-center text-white">
+            <NiveloLogoIcon size={22} />
           </div>
           <div>
             <p className="text-sm font-semibold tracking-tight leading-none">Nivelo</p>

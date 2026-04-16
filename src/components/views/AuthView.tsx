@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { NiveloLogoIcon } from '../atoms/NiveloLogo'
 
 interface AuthViewProps {
   initialMode?: 'login' | 'signup'
@@ -62,9 +63,7 @@ export function AuthView({ initialMode = 'login', onBack }: AuthViewProps) {
 
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-9 h-9 rounded-xl bg-accent/15 border border-accent/20 flex items-center justify-center">
-            <Activity size={18} className="text-accent" />
-          </div>
+          <NiveloLogoIcon size={32} />
           <div>
             <p className="text-base font-semibold tracking-tight leading-none text-white">Nivelo</p>
             <p className="text-[11px] text-muted mt-0.5">Finanças Inteligentes</p>

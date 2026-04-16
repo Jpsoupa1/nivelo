@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
-import { BarChart2, ArrowUpRight, TrendingUp, Shield, Zap, Bell } from 'lucide-react'
+import { ArrowUpRight, TrendingUp, Shield, Zap, Bell } from 'lucide-react'
+import { NiveloLogoIcon } from '../atoms/NiveloLogo'
 
 interface LandingPageProps {
   onSignUp: () => void
@@ -16,9 +17,7 @@ export function LandingPage({ onSignUp, onLogin }: LandingPageProps) {
       <header className="flex items-center justify-between px-10 py-4 border-b border-white/[0.05]">
         {/* Logo */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-accent/15 border border-accent/20 flex items-center justify-center">
-            <BarChart2 size={16} className="text-accent" />
-          </div>
+          <NiveloLogoIcon size={28} />
           <span className="text-base font-bold tracking-tight">NIVELO</span>
         </div>
 
