@@ -1,7 +1,7 @@
 import type { FinancialState, Language } from '../types/finance'
 import { formatCurrency } from '../utils/format'
 
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent'
 
 export type GeminiAction =
   | { type: 'ADD_TRANSACTION'; amount: number; category: string; description: string }
@@ -96,18 +96,23 @@ RULES:
 }
 
 function parseActions(text: string): { cleanText: string; actions: GeminiAction[] } {
+  // Corta o texto rigorosamente antes do bloco de ação começar. 
+  // Isso garante que NUNCA vai vazar '```action' na UI.
   const cleanText = text.split('```action')[0].trim()
+
   const match = text.match(/```action\s*([\s\S]*?)```/m)
   if (!match) return { cleanText, actions: [] }
 
   try {
     const parsed = JSON.parse(match[1].trim())
     const actionsArray = Array.isArray(parsed) ? parsed : [parsed]
-    const validActions = actionsArray.filter((a: Record<string, unknown>) => {
+    
+    const validActions = actionsArray.filter((a: any) => {
       if (a.type === 'ADD_TRANSACTION' && typeof a.amount === 'number' && a.category) return true
       if (a.type === 'ADD_CATEGORY' && a.key && a.name) return true
       return false
     }) as GeminiAction[]
+
     return { cleanText, actions: validActions }
   } catch {
     return { cleanText, actions: [] }
@@ -117,37 +122,59 @@ function parseActions(text: string): { cleanText: string; actions: GeminiAction[
 export async function askGemini(
   userMessage: string,
   state: FinancialState,
-  sessionId = 'default-session',
+  sessionId: string = 'default-session'
 ): Promise<GeminiResult> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string
-  if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not configured')
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  if (!apiKey) {
+    throw new Error('Chave VITE_GEMINI_API_KEY não encontrada no arquivo .env.local')
+  }
 
   const systemPrompt = buildSystemPrompt(state, state.language)
   const history = getSessionHistory(sessionId)
 
   const contents = [
     { role: 'user', parts: [{ text: systemPrompt }] },
-    { role: 'model', parts: [{ text: 'Understood. I am Nivelo AI, ready to help.' }] },
+    { role: 'model', parts: [{ text: 'Understood. I am Nivelo AI.' }] },
     ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
     { role: 'user', parts: [{ text: userMessage }] },
   ]
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: { temperature: 0.7, maxOutputTokens: 512, topP: 0.95 },
-    }),
-  })
+  let res: Response | null = null;
+  let retries = 2; // Tenta até 3 vezes (1 inicial + 2 retries)
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as { error?: { message?: string } }
-    throw new Error(`Gemini ${res.status}: ${err?.error?.message ?? res.statusText}`)
+  while (retries >= 0) {
+    res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        generationConfig: { 
+          temperature: 0.7, 
+          maxOutputTokens: 2048, // Aumentado para não cortar o JSON
+          topP: 0.95,
+        },
+      }),
+    })
+
+    if (res.ok) break; // Sucesso, sai do loop
+
+    if (res.status === 503 && retries > 0) {
+      // Se for High Demand, espera 2 segundos antes de tentar de novo
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      retries--;
+    } else {
+      break; // Outro erro, sai do loop e deixa estourar o erro abaixo
+    }
+  }
+
+  if (!res || !res.ok) {
+    const err = await res?.json().catch(() => ({}));
+    throw new Error(`Gemini Error: ${err?.error?.message || res?.statusText || 'Falha na conexão'}`)
   }
 
   const data = await res.json()
   const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  
   const { cleanText, actions } = parseActions(rawText)
 
   history.push({ role: 'user', text: userMessage })
@@ -155,12 +182,4 @@ export async function askGemini(
   saveSessionHistory(sessionId, history)
 
   return { text: cleanText, actions }
-}
-
-export function clearGeminiSession(sessionId = 'default-session') {
-  sessionStorage.removeItem(`nivelo_chat_${sessionId}`)
-}
-
-export function isGeminiEnabled(): boolean {
-  return !!import.meta.env.VITE_GEMINI_API_KEY
 }
