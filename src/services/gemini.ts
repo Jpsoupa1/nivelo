@@ -183,3 +183,11 @@ export async function askGemini(
 
   return { text: cleanText, actions }
 }
+
+export function isGeminiEnabled(): boolean {
+  return !!import.meta.env.VITE_GEMINI_API_KEY
+}
+
+export function clearGeminiSession(sessionId = 'default-session') {
+  sessionStorage.removeItem(`nivelo_chat_${sessionId}`)
+}
