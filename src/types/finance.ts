@@ -85,7 +85,17 @@ export interface ParsedCommand {
   newCategory?: Category // set when auto-creation is needed
 }
 
-export type AppView = 'dashboard' | 'chat' | 'categories' | 'recurring' | 'import'
+export type AppView = 'dashboard' | 'chat' | 'categories' | 'recurring' | 'import' | 'goals'
+
+export interface Goal {
+  id: string
+  name: string
+  targetAmount: number
+  savedAmount: number
+  deadline?: string  // ISO date string
+  color: string
+  icon: string
+}
 
 export interface RecurringTransaction {
   id: string

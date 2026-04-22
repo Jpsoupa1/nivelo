@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, Cpu, CheckCircle, Sparkles } from 'lucide-react'
+import { Send, Cpu, CheckCircle, Sparkles, Zap } from 'lucide-react'
 import type { ChatMessage, FinancialState, Category } from '../../types/finance'
 import { ChatBubble } from '../molecules/ChatBubble'
 import { parseNLPCommand, buildTransaction } from '../../services/nlpParser'
+import { askGemini, isGeminiEnabled } from '../../services/gemini'
 import { formatCurrency } from '../../utils/format'
 import { t } from '../../services/i18n'
 import { v4 as uuid } from '../../utils/uuid'
@@ -40,29 +41,25 @@ export function AICommandBar({
   const [, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const geminiEnabled = isGeminiEnabled()
 
-  // Rebuild welcome message when language changes (only if it's still the only message)
   useEffect(() => {
     setMessages((prev) => {
-      if (prev.length === 1 && prev[0].id === 'welcome') {
-        return [makeWelcome(state)]
-      }
+      if (prev.length === 1 && prev[0].id === 'welcome') return [makeWelcome(state)]
       return prev
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.language])
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
   function appendMessage(msg: ChatMessage) {
     startTransition(() => setMessages((prev) => [...prev, msg]))
   }
 
-  function handleSubmit(text = input) {
+  async function handleSubmit(text = input) {
     const trimmed = text.trim()
     if (!trimmed || barState === 'processing') return
 
@@ -77,65 +74,106 @@ export function AICommandBar({
     setBarState('processing')
     onProcessing(true)
 
-    const delay = 1200 + Math.random() * 600
-    setTimeout(() => {
-      const lang = state.language
-      const r = t(lang).nlp
-      const cmd = parseNLPCommand(trimmed, state.categories, lang)
-      let reply = cmd.response
+    try {
+      if (geminiEnabled) {
+        // Build history for multi-turn context (exclude welcome)
+        const history = messages
+          .filter((m) => m.id !== 'welcome')
+          .map((m) => ({ role: (m.role === 'user' ? 'user' : 'model') as 'user' | 'model', text: m.content }))
 
-      if (cmd.newCategory) {
-        onAutoCreateCategory(cmd.newCategory)
-        reply += r.autoCatHint(cmd.newCategory.name)
-      }
+        const result = await askGemini(trimmed, state, history)
 
-      if (cmd.intent === 'QUERY_BALANCE') {
-        reply = r.balance(formatCurrency(state.balance))
-      } else if (cmd.intent === 'QUERY_SPENDING') {
-        const cat = state.categories.find((c) => c.key === cmd.categoryKey)
-        if (cat) {
-          const spent = state.transactions
-            .filter((tx) => tx.amount < 0 && tx.category === cat.key)
-            .reduce((s, tx) => s + Math.abs(tx.amount), 0)
-          reply = cat.budgeted > 0
-            ? r.spendWithBudget(formatCurrency(spent), formatCurrency(cat.budgeted), cat.name)
-            : r.spendNoBudget(formatCurrency(spent), cat.name)
-        } else {
-          reply = r.noCatFound(cmd.categoryName ?? '')
-        }
-      } else if (cmd.intent === 'ADD_EXPENSE' || cmd.intent === 'ADD_INCOME') {
-        const tx = buildTransaction(cmd)
-        if (tx) {
+        // Execute action if Gemini detected a transaction command
+        if (result.action?.type === 'ADD_TRANSACTION') {
+          const { amount, category, description } = result.action
+          const cat = state.categories.find((c) => c.key === category)
+          const tx = {
+            id: `txn-${uuid()}`,
+            amount,
+            category,
+            description,
+            date: new Date().toISOString(),
+            source: 'ai' as const,
+            status: 'confirmed' as const,
+          }
           onTransaction(tx)
-          const catName =
-            cmd.newCategory?.name ??
-            state.categories.find((c) => c.key === tx.category)?.name ??
-            tx.category
-          reply = tx.amount < 0
-            ? r.debit(formatCurrency(Math.abs(tx.amount)), catName)
-            : r.credit(formatCurrency(Math.abs(tx.amount)), catName)
-          if (cmd.newCategory) reply += r.autoCatCreated(cmd.newCategory.name)
-        } else {
-          reply = r.noAmount
+          // If category doesn't exist, auto-create
+          if (!cat) {
+            onAutoCreateCategory({
+              id: `cat-${uuid()}`,
+              name: category,
+              key: category,
+              color: '#8B949E',
+              budgeted: 0,
+              icon: 'Tag',
+              autoCreated: true,
+            })
+          }
         }
-      } else if (cmd.intent === 'SET_BUDGET') {
-        reply = cmd.amount
-          ? r.budgetSet(cmd.categoryName ?? '', formatCurrency(cmd.amount))
-          : r.budgetNoAmount
-      }
 
-      appendMessage({ id: uuid(), role: 'assistant', content: reply, timestamp: new Date().toISOString() })
+        appendMessage({ id: uuid(), role: 'assistant', content: result.text, timestamp: new Date().toISOString() })
+      } else {
+        // Fallback: local NLP parser
+        await new Promise((r) => setTimeout(r, 900 + Math.random() * 500))
+        const lang = state.language
+        const r = t(lang).nlp
+        const cmd = parseNLPCommand(trimmed, state.categories, lang)
+        let reply = cmd.response
+
+        if (cmd.newCategory) {
+          onAutoCreateCategory(cmd.newCategory)
+          reply += r.autoCatHint(cmd.newCategory.name)
+        }
+
+        if (cmd.intent === 'QUERY_BALANCE') {
+          reply = r.balance(formatCurrency(state.balance))
+        } else if (cmd.intent === 'QUERY_SPENDING') {
+          const cat = state.categories.find((c) => c.key === cmd.categoryKey)
+          if (cat) {
+            const spent = state.transactions
+              .filter((tx) => tx.amount < 0 && tx.category === cat.key)
+              .reduce((s, tx) => s + Math.abs(tx.amount), 0)
+            reply = cat.budgeted > 0
+              ? r.spendWithBudget(formatCurrency(spent), formatCurrency(cat.budgeted), cat.name)
+              : r.spendNoBudget(formatCurrency(spent), cat.name)
+          } else {
+            reply = r.noCatFound(cmd.categoryName ?? '')
+          }
+        } else if (cmd.intent === 'ADD_EXPENSE' || cmd.intent === 'ADD_INCOME') {
+          const tx = buildTransaction(cmd)
+          if (tx) {
+            onTransaction(tx)
+            const catName = cmd.newCategory?.name ?? state.categories.find((c) => c.key === tx.category)?.name ?? tx.category
+            reply = tx.amount < 0 ? r.debit(formatCurrency(Math.abs(tx.amount)), catName) : r.credit(formatCurrency(Math.abs(tx.amount)), catName)
+            if (cmd.newCategory) reply += r.autoCatCreated(cmd.newCategory.name)
+          } else {
+            reply = r.noAmount
+          }
+        } else if (cmd.intent === 'SET_BUDGET') {
+          reply = cmd.amount ? r.budgetSet(cmd.categoryName ?? '', formatCurrency(cmd.amount)) : r.budgetNoAmount
+        }
+
+        appendMessage({ id: uuid(), role: 'assistant', content: reply, timestamp: new Date().toISOString() })
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error'
+      appendMessage({
+        id: uuid(),
+        role: 'assistant',
+        content: `Error connecting to Nivelo AI: ${errMsg}`,
+        timestamp: new Date().toISOString(),
+      })
+    } finally {
       setBarState('done')
       onProcessing(false)
       setTimeout(() => setBarState('idle'), 1500)
-    }, delay)
+    }
   }
 
   const s = t(state.language).chat
 
   return (
     <div className={`glass rounded-xl flex flex-col overflow-hidden ${fullPage ? 'h-full' : ''}`}>
-      {/* Header (full-page only) */}
       {fullPage && (
         <div className="shrink-0 px-5 py-3.5 border-b border-white/[0.06] flex items-center gap-3">
           <Sparkles size={14} className="text-accent" />
@@ -143,7 +181,13 @@ export function AICommandBar({
             <p className="text-sm font-medium">{s.title}</p>
             <p className="text-[10px] text-muted">{s.subtitle}</p>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            {geminiEnabled && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 border border-accent/15">
+                <Zap size={9} className="text-accent" />
+                <span className="text-[9px] text-accent font-medium">Gemini</span>
+              </div>
+            )}
             <AnimatePresence>
               {barState === 'processing' && (
                 <motion.div
@@ -161,31 +205,21 @@ export function AICommandBar({
         </div>
       )}
 
-      {/* Chat history */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 min-h-0"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 min-h-0">
         <AnimatePresence initial={false}>
-          {messages.map((msg) => (
-            <ChatBubble key={msg.id} message={msg} />
-          ))}
+          {messages.map((msg) => <ChatBubble key={msg.id} message={msg} />)}
         </AnimatePresence>
 
         {barState === 'processing' && (
-          <motion.div
-            className="flex justify-start"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
+          <motion.div className="flex justify-start" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="glass px-3 py-2 rounded-xl rounded-bl-sm flex items-center gap-2">
               <Cpu size={12} className="text-accent animate-pulse" />
-              <span className="text-xs text-muted">{s.pipeline}</span>
+              <span className="text-xs text-muted">
+                {geminiEnabled ? 'Gemini AI is thinking…' : s.pipeline}
+              </span>
               <div className="flex gap-0.5">
                 {[0, 1, 2].map((i) => (
-                  <motion.span
-                    key={i}
-                    className="w-1 h-1 rounded-full bg-accent"
+                  <motion.span key={i} className="w-1 h-1 rounded-full bg-accent"
                     animate={{ opacity: [0.3, 1, 0.3] }}
                     transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.2 }}
                   />
@@ -196,37 +230,25 @@ export function AICommandBar({
         )}
       </div>
 
-      {/* Suggestion chips (full-page only, shown before any user message) */}
       {fullPage && messages.length <= 1 && (
         <div className="px-4 pb-2 flex flex-wrap gap-1.5">
           {s.suggestions.map((suggestion) => (
-            <button
-              key={suggestion}
-              onClick={() => handleSubmit(suggestion)}
-              className="text-xs px-2.5 py-1 rounded-full border border-white/[0.08] text-muted hover:text-white hover:border-accent/30 transition-colors"
-            >
+            <button key={suggestion} onClick={() => handleSubmit(suggestion)}
+              className="text-xs px-2.5 py-1 rounded-full border border-white/[0.08] text-muted hover:text-white hover:border-accent/30 transition-colors">
               {suggestion}
             </button>
           ))}
         </div>
       )}
 
-      {/* Input bar */}
       <div className="shrink-0 border-t border-white/[0.06] px-4 py-3">
-        <div
-          className={`relative flex items-center gap-3 rounded-lg border transition-all duration-200 px-3 h-11 ${
-            barState === 'focused'
-              ? 'border-accent/40 bg-surface-2'
-              : barState === 'processing'
-              ? 'border-accent/20 bg-surface-2'
-              : barState === 'done'
-              ? 'border-success/40 bg-surface-2'
-              : 'border-white/[0.06] bg-surface-2/50'
-          }`}
-        >
-          {barState === 'processing' && (
-            <div className="absolute inset-0 rounded-lg shimmer pointer-events-none" />
-          )}
+        <div className={`relative flex items-center gap-3 rounded-lg border transition-all duration-200 px-3 h-11 ${
+          barState === 'focused' ? 'border-accent/40 bg-surface-2'
+          : barState === 'processing' ? 'border-accent/20 bg-surface-2'
+          : barState === 'done' ? 'border-success/40 bg-surface-2'
+          : 'border-white/[0.06] bg-surface-2/50'
+        }`}>
+          {barState === 'processing' && <div className="absolute inset-0 rounded-lg shimmer pointer-events-none" />}
 
           <AnimatePresence mode="wait">
             {barState === 'processing' && (
@@ -241,14 +263,15 @@ export function AICommandBar({
             )}
             {(barState === 'idle' || barState === 'focused') && (
               <motion.span key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <span className="text-[10px] font-mono text-muted shrink-0 select-none">AI</span>
+                {geminiEnabled
+                  ? <Zap size={13} className="text-accent/60 shrink-0" />
+                  : <span className="text-[10px] font-mono text-muted shrink-0 select-none">AI</span>
+                }
               </motion.span>
             )}
           </AnimatePresence>
 
-          <input
-            ref={inputRef}
-            value={input}
+          <input ref={inputRef} value={input}
             onChange={(e) => setInput(e.target.value)}
             onFocus={() => barState === 'idle' && setBarState('focused')}
             onBlur={() => barState === 'focused' && setBarState('idle')}
@@ -258,11 +281,8 @@ export function AICommandBar({
             className="flex-1 bg-transparent text-sm text-white/90 placeholder:text-muted/50 outline-none disabled:opacity-50"
           />
 
-          <button
-            onClick={() => handleSubmit()}
-            disabled={!input.trim() || barState === 'processing'}
-            className="shrink-0 p-1 rounded text-muted hover:text-accent disabled:opacity-30 transition-colors"
-          >
+          <button onClick={() => handleSubmit()} disabled={!input.trim() || barState === 'processing'}
+            className="shrink-0 p-1 rounded text-muted hover:text-accent disabled:opacity-30 transition-colors">
             <Send size={13} />
           </button>
         </div>

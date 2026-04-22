@@ -1,15 +1,17 @@
 import { ChevronLeft, ChevronRight, Wallet, TrendingDown, TrendingUp } from 'lucide-react'
-import type { FinancialState, Transaction } from '../../types/finance'
+import type { FinancialState, Transaction, RecurringTransaction } from '../../types/finance'
 import { KPICard } from '../molecules/KPICard'
 import { CashFlowChart } from '../organisms/CashFlowChart'
 import { SmartLedger } from '../organisms/SmartLedger'
 import { AllocationPanel } from '../organisms/AllocationPanel'
 import { BudgetAlerts } from '../organisms/BudgetAlerts'
+import { ProjectionChart } from '../organisms/ProjectionChart'
 import { computeCashFlow } from '../../store/financeReducer'
 import { t } from '../../services/i18n'
 
 interface DashboardViewProps {
   state: FinancialState
+  recurrings: RecurringTransaction[]
   onUpdateTransaction: (tx: Transaction) => void
   onSetPeriod: (month: number, year: number) => void
 }
@@ -19,7 +21,7 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-export function DashboardView({ state, onUpdateTransaction, onSetPeriod }: DashboardViewProps) {
+export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPeriod }: DashboardViewProps) {
   const s = t(state.language).dashboard
   const { month, year } = state.selectedPeriod
 
@@ -69,13 +71,13 @@ export function DashboardView({ state, onUpdateTransaction, onSetPeriod }: Dashb
             "period  period  period  period"
             "alerts  alerts  alerts  alerts"
             "balance lastTx  lastTx  allocation"
-            "chart   chart   ledger  ledger"
+            "chart   proj    ledger  ledger"
             "alloc   alloc   ledger  ledger"
           `
           : `
             "period  period  period  period"
             "balance lastTx  lastTx  allocation"
-            "chart   chart   ledger  ledger"
+            "chart   proj    ledger  ledger"
             "alloc   alloc   ledger  ledger"
           `,
       }}
@@ -184,6 +186,15 @@ export function DashboardView({ state, onUpdateTransaction, onSetPeriod }: Dashb
       {/* Cash Flow Chart */}
       <div style={{ gridArea: 'chart' }}>
         <CashFlowChart data={cashFlow} />
+      </div>
+
+      {/* Balance Projection */}
+      <div style={{ gridArea: 'proj' }}>
+        <ProjectionChart
+          balance={state.balance}
+          transactions={state.transactions}
+          recurrings={recurrings}
+        />
       </div>
 
       {/* Smart Ledger — shows period transactions */}

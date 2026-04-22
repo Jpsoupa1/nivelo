@@ -5,6 +5,7 @@ import {
   Tag,
   Repeat,
   Upload,
+  Target,
   ChevronRight,
   LogOut,
 } from 'lucide-react'
@@ -43,6 +44,7 @@ export function Sidebar({
     { id: 'chat',       label: s.nav.chat.label,       description: s.nav.chat.description,       icon: <MessageSquare size={16} /> },
     { id: 'categories', label: s.nav.categories.label, description: s.nav.categories.description, icon: <Tag size={16} /> },
     { id: 'recurring',  label: s.nav.recurring.label,  description: s.nav.recurring.description,  icon: <Repeat size={16} /> },
+    { id: 'goals',      label: s.nav.goals.label,      description: s.nav.goals.description,      icon: <Target size={16} /> },
     { id: 'import',     label: s.nav.import.label,     description: s.nav.import.description,     icon: <Upload size={16} /> },
   ]
 

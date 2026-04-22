@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Transaction, Category, RecurringTransaction } from '../types/finance'
+import type { Transaction, Category, RecurringTransaction, Goal } from '../types/finance'
 
 // ── Transactions ─────────────────────────────────────────────
 
@@ -134,6 +134,46 @@ export async function updateRecurring(r: RecurringTransaction): Promise<void> {
 
 export async function deleteRecurring(id: string): Promise<void> {
   const { error } = await supabase.from('recurring_transactions').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ── Goals ─────────────────────────────────────────────────────
+
+export async function fetchGoals(): Promise<Goal[]> {
+  const { data, error } = await supabase
+    .from('goals')
+    .select('id, name, target_amount, saved_amount, deadline, color, icon')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    targetAmount: r.target_amount,
+    savedAmount: r.saved_amount,
+    deadline: r.deadline ?? undefined,
+    color: r.color,
+    icon: r.icon,
+  }))
+}
+
+export async function insertGoal(g: Goal): Promise<void> {
+  const { error } = await supabase.from('goals').insert({
+    id: g.id, name: g.name, target_amount: g.targetAmount,
+    saved_amount: g.savedAmount, deadline: g.deadline ?? null,
+    color: g.color, icon: g.icon,
+  })
+  if (error) throw error
+}
+
+export async function updateGoal(g: Goal): Promise<void> {
+  const { error } = await supabase.from('goals')
+    .update({ name: g.name, target_amount: g.targetAmount, saved_amount: g.savedAmount, deadline: g.deadline ?? null, color: g.color })
+    .eq('id', g.id)
+  if (error) throw error
+}
+
+export async function deleteGoal(id: string): Promise<void> {
+  const { error } = await supabase.from('goals').delete().eq('id', id)
   if (error) throw error
 }
 

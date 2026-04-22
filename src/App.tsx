@@ -7,6 +7,7 @@ import { ChatView } from './components/views/ChatView'
 import { CategoriesView } from './components/views/CategoriesView'
 import { RecurringView } from './components/views/RecurringView'
 import { ImportView } from './components/views/ImportView'
+import { GoalsView } from './components/views/GoalsView'
 import { AuthView } from './components/views/AuthView'
 import { LandingPage } from './components/views/LandingPage'
 import { buildTransaction } from './services/nlpParser'
@@ -23,9 +24,13 @@ import {
   insertRecurring,
   updateRecurring,
   deleteRecurring,
+  fetchGoals,
+  insertGoal,
+  updateGoal,
+  deleteGoal,
 } from './services/database'
 import { getPendingRecurring } from './services/recurringEngine'
-import type { Transaction, Category, RecurringTransaction, AppView } from './types/finance'
+import type { Transaction, Category, RecurringTransaction, Goal, AppView } from './types/finance'
 
 type Screen = 'landing' | 'login' | 'signup'
 
@@ -36,20 +41,22 @@ function FinanceApp() {
   const [activeView, setActiveView] = useState<AppView>('dashboard')
   const [dataLoading, setDataLoading] = useState(false)
   const [recurrings, setRecurrings] = useState<RecurringTransaction[]>([])
+  const [goals, setGoals] = useState<Goal[]>([])
 
   // Load user data on login
   useEffect(() => {
     if (!user) return
 
     setDataLoading(true)
-    Promise.all([fetchTransactions(), fetchCategories(), fetchRecurring()])
-      .then(async ([transactions, categories, recs]) => {
+    Promise.all([fetchTransactions(), fetchCategories(), fetchRecurring(), fetchGoals()])
+      .then(async ([transactions, categories, recs, fetchedGoals]) => {
         const finalCategories = categories.length === 0
           ? (await seedDefaultCategories(DEFAULT_CATEGORIES), DEFAULT_CATEGORIES)
           : categories
 
         dispatch({ type: 'LOAD_DATA', payload: { transactions, categories: finalCategories } })
         setRecurrings(recs)
+        setGoals(fetchedGoals)
 
         // Fire any pending recurring transactions for the current month
         const now = new Date()
@@ -119,6 +126,21 @@ function FinanceApp() {
     await deleteRecurring(id)
   }
 
+  async function handleAddGoal(g: Goal) {
+    setGoals((prev) => [...prev, g])
+    await insertGoal(g)
+  }
+
+  async function handleUpdateGoal(g: Goal) {
+    setGoals((prev) => prev.map((x) => x.id === g.id ? g : x))
+    await updateGoal(g)
+  }
+
+  async function handleDeleteGoal(id: string) {
+    setGoals((prev) => prev.filter((x) => x.id !== id))
+    await deleteGoal(id)
+  }
+
   function handleSetPeriod(month: number, year: number) {
     dispatch({ type: 'SET_PERIOD', payload: { month, year } })
   }
@@ -165,6 +187,7 @@ function FinanceApp() {
         {activeView === 'dashboard' && (
           <DashboardView
             state={state}
+            recurrings={recurrings}
             onUpdateTransaction={handleUpdateTransaction}
             onSetPeriod={handleSetPeriod}
           />
@@ -184,6 +207,15 @@ function FinanceApp() {
             onAdd={handleAddCategory}
             onUpdate={handleUpdateCategory}
             onDelete={handleDeleteCategory}
+          />
+        )}
+        {activeView === 'goals' && (
+          <GoalsView
+            goals={goals}
+            lang={state.language}
+            onAdd={handleAddGoal}
+            onUpdate={handleUpdateGoal}
+            onDelete={handleDeleteGoal}
           />
         )}
         {activeView === 'import' && (
