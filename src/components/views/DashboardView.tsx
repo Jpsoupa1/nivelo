@@ -8,6 +8,7 @@ import { BudgetAlerts } from '../organisms/BudgetAlerts'
 import { ProjectionChart } from '../organisms/ProjectionChart'
 import { computeCashFlow } from '../../store/financeReducer'
 import { t } from '../../services/i18n'
+import { formatCurrency } from '../../utils/format'
 
 interface DashboardViewProps {
   state: FinancialState
@@ -108,7 +109,7 @@ export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPer
             }}
             className="ml-1 text-[11px] text-accent/70 hover:text-accent transition-colors"
           >
-            Today
+            {state.language === 'pt' ? 'Hoje' : 'Today'}
           </button>
         )}
       </div>
@@ -127,9 +128,9 @@ export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPer
           value={state.balance}
           subtitle={s.allAccounts}
           icon={<Wallet size={16} />}
-          trend={4.2}
           isLoading={state.isProcessing}
           accentColor="#58A6FF"
+          language={state.language}
         />
       </div>
 
@@ -142,15 +143,16 @@ export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPer
           icon={<TrendingDown size={16} />}
           accentColor={lastTx && lastTx.amount < 0 ? '#F78166' : '#3FB950'}
           isLoading={state.isProcessing}
+          language={state.language}
         />
         <KPICard
           title={s.monthlyIncome}
           value={monthlyIncome}
           subtitle={s.thisMonth}
           icon={<TrendingUp size={16} />}
-          trend={2.8}
           accentColor="#3FB950"
           isLoading={state.isProcessing}
+          language={state.language}
         />
       </div>
 
@@ -173,11 +175,12 @@ export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPer
             <KPICard
               title={s.topSpend(top.category.name)}
               value={top.spent}
-              subtitle={s.ofBudget(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(top.category.budgeted))}
+              subtitle={s.ofBudget(formatCurrency(top.category.budgeted, state.language))}
               icon={<TrendingDown size={16} />}
               trend={-(top.spent / top.category.budgeted) * 100}
               accentColor={top.category.color}
               isLoading={state.isProcessing}
+              language={state.language}
             />
           )
         })()}

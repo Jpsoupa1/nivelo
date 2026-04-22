@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { Search, Filter } from 'lucide-react'
 import type { Transaction, Category, Language } from '../../types/finance'
@@ -17,6 +17,19 @@ export function SmartLedger({ transactions, categories, onUpdate, lang }: SmartL
   const [search, setSearch] = useState('')
   const [filterKey, setFilterKey] = useState<string>('ALL')
   const [showFilter, setShowFilter] = useState(false)
+  const filterRef = useRef<HTMLDivElement>(null)
+
+  // Fix #11: Close dropdown on outside click
+  useEffect(() => {
+    if (!showFilter) return
+    function handleClick(e: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setShowFilter(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showFilter])
 
   const filtered = transactions.filter((tx) => {
     const matchSearch =
@@ -49,7 +62,7 @@ export function SmartLedger({ transactions, categories, onUpdate, lang }: SmartL
             />
           </div>
 
-          <div className="relative">
+          <div className="relative" ref={filterRef}>
             <button
               onClick={() => setShowFilter((v) => !v)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors ${

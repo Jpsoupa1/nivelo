@@ -72,7 +72,7 @@ export function Sidebar({
           {s.liquidBalance}
         </p>
         <p className="font-mono text-base font-semibold text-white">
-          {formatCurrency(balance)}
+          {formatCurrency(balance, language)}
         </p>
         {isProcessing && (
           <div className="flex items-center gap-1.5 mt-1.5">

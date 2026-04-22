@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
 import { CurrencyDisplay } from '../atoms/CurrencyDisplay'
+import type { Language } from '../../types/finance'
 
 interface KPICardProps {
   title: string
@@ -10,6 +11,7 @@ interface KPICardProps {
   trend?: number // positive = up, negative = down
   isLoading?: boolean
   accentColor?: string
+  language?: Language
 }
 
 export function KPICard({
@@ -20,6 +22,7 @@ export function KPICard({
   trend,
   isLoading = false,
   accentColor = '#58A6FF',
+  language = 'en',
 }: KPICardProps) {
   const trendPositive = trend !== undefined && trend >= 0
 
@@ -48,6 +51,7 @@ export function KPICard({
           value={value}
           className="text-2xl font-semibold text-white"
           animate={!isLoading}
+          language={language}
         />
 
         {(subtitle || trend !== undefined) && (

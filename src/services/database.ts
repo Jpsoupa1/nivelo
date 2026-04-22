@@ -1,6 +1,12 @@
 import { supabase } from '../lib/supabase'
 import type { Transaction, Category, RecurringTransaction, Goal } from '../types/finance'
 
+async function getUserId(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+  return user.id
+}
+
 // ── Transactions ─────────────────────────────────────────────
 
 export async function fetchTransactions(): Promise<Transaction[]> {
@@ -14,8 +20,10 @@ export async function fetchTransactions(): Promise<Transaction[]> {
 }
 
 export async function insertTransaction(tx: Transaction): Promise<void> {
+  const userId = await getUserId()
   const { error } = await supabase.from('transactions').insert({
     id: tx.id,
+    user_id: userId,
     amount: tx.amount,
     category: tx.category,
     description: tx.description,
@@ -63,8 +71,10 @@ export async function fetchCategories(): Promise<Category[]> {
 }
 
 export async function insertCategory(cat: Category): Promise<void> {
+  const userId = await getUserId()
   const { error } = await supabase.from('categories').insert({
     id: cat.id,
+    user_id: userId,
     name: cat.name,
     key: cat.key,
     color: cat.color,
@@ -113,8 +123,10 @@ export async function fetchRecurring(): Promise<RecurringTransaction[]> {
 }
 
 export async function insertRecurring(r: RecurringTransaction): Promise<void> {
+  const userId = await getUserId()
   const { error } = await supabase.from('recurring_transactions').insert({
     id: r.id,
+    user_id: userId,
     amount: r.amount,
     category: r.category,
     description: r.description,
@@ -157,8 +169,9 @@ export async function fetchGoals(): Promise<Goal[]> {
 }
 
 export async function insertGoal(g: Goal): Promise<void> {
+  const userId = await getUserId()
   const { error } = await supabase.from('goals').insert({
-    id: g.id, name: g.name, target_amount: g.targetAmount,
+    id: g.id, user_id: userId, name: g.name, target_amount: g.targetAmount,
     saved_amount: g.savedAmount, deadline: g.deadline ?? null,
     color: g.color, icon: g.icon,
   })
@@ -180,8 +193,10 @@ export async function deleteGoal(id: string): Promise<void> {
 // ── Seed default categories for new users ───────────────────
 
 export async function seedDefaultCategories(defaults: Category[]): Promise<void> {
+  const userId = await getUserId()
   const rows = defaults.map((cat) => ({
     id: cat.id,
+    user_id: userId,
     name: cat.name,
     key: cat.key,
     color: cat.color,

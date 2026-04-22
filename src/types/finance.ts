@@ -49,6 +49,7 @@ export interface FinancialState {
 
 export type FinanceAction =
   | { type: 'ADD_TRANSACTION'; payload: Transaction }
+  | { type: 'REMOVE_TRANSACTION'; payload: string }
   | { type: 'UPDATE_BALANCE'; payload: number }
   | { type: 'SET_PROCESSING'; payload: boolean }
   | { type: 'UPDATE_TRANSACTION'; payload: Transaction }
@@ -59,6 +60,7 @@ export type FinanceAction =
   | { type: 'SET_LANGUAGE'; payload: Language }
   | { type: 'SET_PERIOD'; payload: SelectedPeriod }
   | { type: 'LOAD_DATA'; payload: { transactions: Transaction[]; categories: Category[] } }
+
 
 export interface ChatMessage {
   id: string

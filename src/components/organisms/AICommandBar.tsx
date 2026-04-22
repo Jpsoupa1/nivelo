@@ -8,6 +8,7 @@ import { askGemini, isGeminiEnabled } from '../../services/gemini'
 import { formatCurrency } from '../../utils/format'
 import { t } from '../../services/i18n'
 import { v4 as uuid } from '../../utils/uuid'
+import { CATEGORY_COLORS } from '../../data/mockData'
 
 type BarState = 'idle' | 'focused' | 'processing' | 'done'
 
@@ -15,7 +16,10 @@ interface AICommandBarProps {
   state: FinancialState
   onTransaction: (tx: ReturnType<typeof buildTransaction>) => void
   onProcessing: (v: boolean) => void
-  onAutoCreateCategory: (cat: Category) => void
+  onAutoCreateCategory: (cat: Category) => Promise<void>
+  onUpdateCategory: (cat: Category) => void
+  messages: ChatMessage[]
+  onSetMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
   fullPage?: boolean
 }
 
@@ -28,47 +32,100 @@ function makeWelcome(state: FinancialState): ChatMessage {
   }
 }
 
+function pickColor(categories: Category[]): string {
+  const used = new Set(categories.map((c) => c.color))
+  return CATEGORY_COLORS.find((c) => !used.has(c)) ?? CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length]
+}
+
 export function AICommandBar({
   state,
   onTransaction,
   onProcessing,
   onAutoCreateCategory,
+  onUpdateCategory,
+  messages,
+  onSetMessages,
   fullPage = false,
 }: AICommandBarProps) {
   const [input, setInput] = useState('')
   const [barState, setBarState] = useState<BarState>('idle')
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [makeWelcome(state)])
   const [, startTransition] = useTransition()
+  const [pendingBudgetCat, setPendingBudgetCat] = useState<Category | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const geminiEnabled = isGeminiEnabled()
 
+  // Seed welcome message once on mount
   useEffect(() => {
-    setMessages((prev) => {
+    if (messages.length === 0) {
+      onSetMessages([makeWelcome(state)])
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update welcome message when language changes (only if it's the only message)
+  useEffect(() => {
+    onSetMessages((prev) => {
       if (prev.length === 1 && prev[0].id === 'welcome') return [makeWelcome(state)]
       return prev
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.language])
+  }, [state.language]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages])
 
   function appendMessage(msg: ChatMessage) {
-    startTransition(() => setMessages((prev) => [...prev, msg]))
+    startTransition(() => onSetMessages((prev) => [...prev, msg]))
   }
 
+  function botMsg(content: string): ChatMessage {
+    return { id: uuid(), role: 'assistant', content, timestamp: new Date().toISOString() }
+  }
+
+  // ── Budget capture ────────────────────────────────────────────────────────
+  async function handleBudgetReply(trimmed: string) {
+    const cat = pendingBudgetCat!
+    appendMessage({ id: uuid(), role: 'user', content: trimmed, timestamp: new Date().toISOString() })
+    setInput('')
+
+    const amount = parseFloat(trimmed.replace(',', '.'))
+    const isPT = state.language === 'pt'
+
+    if (isNaN(amount) || amount < 0) {
+      appendMessage(botMsg(
+        isPT
+          ? `Não entendi. Digite um número como **300** ou **0** para deixar sem orçamento.`
+          : `Didn't catch that. Type a number like **300**, or **0** to skip.`
+      ))
+      return
+    }
+
+    const updated = { ...cat, budgeted: amount }
+    onUpdateCategory(updated)
+    setPendingBudgetCat(null)
+
+    appendMessage(botMsg(
+      amount === 0
+        ? isPT
+          ? `Ok, **${cat.name}** ficará sem orçamento mensal. Você pode definir um depois em Categorias.`
+          : `Got it — **${cat.name}** has no monthly budget for now. You can set one later in Categories.`
+        : isPT
+          ? `Pronto! Orçamento mensal de **${formatCurrency(amount)}** definido para **${cat.name}**. A categoria já aparece em Categorias.`
+          : `Done! Monthly budget of **${formatCurrency(amount)}** set for **${cat.name}**. It's already visible in Categories.`
+    ))
+  }
+
+  // ── Main submit ───────────────────────────────────────────────────────────
   async function handleSubmit(text = input) {
     const trimmed = text.trim()
     if (!trimmed || barState === 'processing') return
 
-    const userMsg: ChatMessage = {
-      id: uuid(),
-      role: 'user',
-      content: trimmed,
-      timestamp: new Date().toISOString(),
+    if (pendingBudgetCat) {
+      handleBudgetReply(trimmed)
+      return
     }
+
+    const userMsg: ChatMessage = { id: uuid(), role: 'user', content: trimmed, timestamp: new Date().toISOString() }
     appendMessage(userMsg)
     setInput('')
     setBarState('processing')
@@ -76,42 +133,63 @@ export function AICommandBar({
 
     try {
       if (geminiEnabled) {
-        // Build history for multi-turn context (exclude welcome)
-        const history = messages
-          .filter((m) => m.id !== 'welcome')
-          .map((m) => ({ role: (m.role === 'user' ? 'user' : 'model') as 'user' | 'model', text: m.content }))
+        // askGemini now manages session history internally via sessionStorage
+        const result = await askGemini(trimmed, state)
 
-        const result = await askGemini(trimmed, state, history)
+        let lastNewCat: Category | null = null
 
-        // Execute action if Gemini detected a transaction command
-        if (result.action?.type === 'ADD_TRANSACTION') {
-          const { amount, category, description } = result.action
-          const cat = state.categories.find((c) => c.key === category)
-          const tx = {
-            id: `txn-${uuid()}`,
-            amount,
-            category,
-            description,
-            date: new Date().toISOString(),
-            source: 'ai' as const,
-            status: 'confirmed' as const,
-          }
-          onTransaction(tx)
-          // If category doesn't exist, auto-create
-          if (!cat) {
-            onAutoCreateCategory({
+        for (const action of result.actions) {
+          if (action.type === 'ADD_CATEGORY') {
+            const newCat: Category = {
               id: `cat-${uuid()}`,
-              name: category,
-              key: category,
-              color: '#8B949E',
-              budgeted: 0,
+              name: action.name,
+              key: action.key.toUpperCase().replace(/[^A-Z0-9_]/g, '_'),
+              color: pickColor([...state.categories, ...(lastNewCat ? [lastNewCat] : [])]),
+              budgeted: action.budget ?? 0,
               icon: 'Tag',
               autoCreated: true,
-            })
+            }
+            await onAutoCreateCategory(newCat)
+            lastNewCat = newCat
+
+          } else if (action.type === 'ADD_TRANSACTION') {
+            const tx = {
+              id: `txn-${uuid()}`,
+              amount: action.amount,
+              category: action.category,
+              description: action.description,
+              date: new Date().toISOString(),
+              source: 'ai' as const,
+              status: 'confirmed' as const,
+            }
+            onTransaction(tx)
+
+            // Auto-create category if missing and no ADD_CATEGORY action handled it
+            const catExists = state.categories.some((c) => c.key === action.category)
+              || lastNewCat?.key === action.category
+            if (!catExists) {
+              const autocat: Category = {
+                id: `cat-${uuid()}`,
+                name: action.category,
+                key: action.category.toUpperCase().replace(/[^A-Z0-9_]/g, '_'),
+                color: pickColor(state.categories),
+                budgeted: 0,
+                icon: 'Tag',
+                autoCreated: true,
+              }
+              await onAutoCreateCategory(autocat)
+              lastNewCat = autocat
+            }
           }
         }
 
-        appendMessage({ id: uuid(), role: 'assistant', content: result.text, timestamp: new Date().toISOString() })
+        appendMessage(botMsg(result.text))
+
+        // If a new category was created with no budget, activate budget-capture mode
+        if (lastNewCat && lastNewCat.budgeted === 0) {
+          setPendingBudgetCat(lastNewCat)
+        }
+
       } else {
         // Fallback: local NLP parser
         await new Promise((r) => setTimeout(r, 900 + Math.random() * 500))
@@ -119,9 +197,11 @@ export function AICommandBar({
         const r = t(lang).nlp
         const cmd = parseNLPCommand(trimmed, state.categories, lang)
         let reply = cmd.response
+        let newCat: Category | null = null
 
         if (cmd.newCategory) {
-          onAutoCreateCategory(cmd.newCategory)
+          await onAutoCreateCategory(cmd.newCategory)
+          newCat = cmd.newCategory
           reply += r.autoCatHint(cmd.newCategory.name)
         }
 
@@ -144,7 +224,9 @@ export function AICommandBar({
           if (tx) {
             onTransaction(tx)
             const catName = cmd.newCategory?.name ?? state.categories.find((c) => c.key === tx.category)?.name ?? tx.category
-            reply = tx.amount < 0 ? r.debit(formatCurrency(Math.abs(tx.amount)), catName) : r.credit(formatCurrency(Math.abs(tx.amount)), catName)
+            reply = tx.amount < 0
+              ? r.debit(formatCurrency(Math.abs(tx.amount)), catName)
+              : r.credit(formatCurrency(Math.abs(tx.amount)), catName)
             if (cmd.newCategory) reply += r.autoCatCreated(cmd.newCategory.name)
           } else {
             reply = r.noAmount
@@ -153,16 +235,21 @@ export function AICommandBar({
           reply = cmd.amount ? r.budgetSet(cmd.categoryName ?? '', formatCurrency(cmd.amount)) : r.budgetNoAmount
         }
 
-        appendMessage({ id: uuid(), role: 'assistant', content: reply, timestamp: new Date().toISOString() })
+        appendMessage(botMsg(reply))
+
+        if (newCat && newCat.budgeted === 0) {
+          const isPT = lang === 'pt'
+          appendMessage(botMsg(
+            isPT
+              ? `Qual deve ser o orçamento mensal para **${newCat.name}**? (Digite **0** para deixar sem orçamento)`
+              : `What should the monthly budget be for **${newCat.name}**? (Type **0** to skip)`
+          ))
+          setPendingBudgetCat(newCat)
+        }
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error'
-      appendMessage({
-        id: uuid(),
-        role: 'assistant',
-        content: `Error connecting to Nivelo AI: ${errMsg}`,
-        timestamp: new Date().toISOString(),
-      })
+      appendMessage(botMsg(`Error connecting to Nivelo AI: ${errMsg}`))
     } finally {
       setBarState('done')
       onProcessing(false)
@@ -230,7 +317,7 @@ export function AICommandBar({
         )}
       </div>
 
-      {fullPage && messages.length <= 1 && (
+      {fullPage && messages.length <= 1 && !pendingBudgetCat && (
         <div className="px-4 pb-2 flex flex-wrap gap-1.5">
           {s.suggestions.map((suggestion) => (
             <button key={suggestion} onClick={() => handleSubmit(suggestion)}
@@ -241,11 +328,23 @@ export function AICommandBar({
         </div>
       )}
 
+      {pendingBudgetCat && (
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/[0.06] border border-accent/15 text-xs text-accent">
+            <Sparkles size={11} />
+            {state.language === 'pt'
+              ? `Aguardando orçamento mensal para "${pendingBudgetCat.name}"`
+              : `Awaiting monthly budget for "${pendingBudgetCat.name}"`}
+          </div>
+        </div>
+      )}
+
       <div className="shrink-0 border-t border-white/[0.06] px-4 py-3">
         <div className={`relative flex items-center gap-3 rounded-lg border transition-all duration-200 px-3 h-11 ${
           barState === 'focused' ? 'border-accent/40 bg-surface-2'
           : barState === 'processing' ? 'border-accent/20 bg-surface-2'
           : barState === 'done' ? 'border-success/40 bg-surface-2'
+          : pendingBudgetCat ? 'border-accent/30 bg-surface-2'
           : 'border-white/[0.06] bg-surface-2/50'
         }`}>
           {barState === 'processing' && <div className="absolute inset-0 rounded-lg shimmer pointer-events-none" />}
@@ -277,7 +376,9 @@ export function AICommandBar({
             onBlur={() => barState === 'focused' && setBarState('idle')}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             disabled={barState === 'processing'}
-            placeholder={s.placeholder}
+            placeholder={pendingBudgetCat
+              ? (state.language === 'pt' ? 'Digite o orçamento mensal (ex: 300)...' : 'Type monthly budget (e.g. 300)...')
+              : s.placeholder}
             className="flex-1 bg-transparent text-sm text-white/90 placeholder:text-muted/50 outline-none disabled:opacity-50"
           />
 

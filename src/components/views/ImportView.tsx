@@ -238,7 +238,7 @@ export function ImportView({ categories, lang, onImport }: ImportViewProps) {
                 <span className={`font-mono text-xs font-semibold shrink-0 w-24 text-right ${
                   row.amount < 0 ? 'text-red-400' : 'text-emerald-400'
                 }`}>
-                  {row.amount < 0 ? '−' : '+'}{formatCurrency(Math.abs(row.amount))}
+                  {row.amount < 0 ? '−' : '+'}{formatCurrency(Math.abs(row.amount), lang)}
                 </span>
               </div>
             ))}

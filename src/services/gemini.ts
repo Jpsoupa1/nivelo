@@ -1,19 +1,32 @@
 import type { FinancialState, Language } from '../types/finance'
 import { formatCurrency } from '../utils/format'
+import { supabase } from '../lib/supabase'
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
-
-export interface GeminiAction {
-  type: 'ADD_TRANSACTION'
-  amount: number
-  category: string
-  description: string
+// Edge Function URL — proxied through Supabase to protect API key
+function getEdgeFunctionUrl(): string {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+  return `${supabaseUrl}/functions/v1/gemini-proxy`
 }
+
+export type GeminiAction =
+  | { type: 'ADD_TRANSACTION'; amount: number; category: string; description: string }
+  | { type: 'ADD_CATEGORY'; key: string; name: string; budget?: number }
 
 export interface GeminiResult {
   text: string
-  action: GeminiAction | null
+  actions: GeminiAction[]
+}
+
+type ChatMessage = { role: 'user' | 'model'; text: string }
+
+// Session management via SessionStorage
+function getSessionHistory(sessionId: string): ChatMessage[] {
+  const saved = sessionStorage.getItem(`nivelo_chat_${sessionId}`)
+  return saved ? JSON.parse(saved) : []
+}
+
+function saveSessionHistory(sessionId: string, history: ChatMessage[]) {
+  sessionStorage.setItem(`nivelo_chat_${sessionId}`, JSON.stringify(history))
 }
 
 function buildSystemPrompt(state: FinancialState, language: Language): string {
@@ -67,72 +80,104 @@ Available categories: ${catKeys}
 RULES:
 1. Answer questions about finances using the context above.
 2. Give insights, comparisons, and advice when asked.
-3. If the user wants to RECORD a transaction (expense or income), append EXACTLY this block at the very end of your response (no extra text after it):
+3. If the user wants to RECORD a transaction OR CREATE a category, append EXACTLY this block at the very end of your response containing a JSON array:
 \`\`\`action
-{"type":"ADD_TRANSACTION","amount":<signed_float>,"category":"<CATEGORY_KEY>","description":"<short description>"}
+[
+  {"type": "ADD_CATEGORY", "key": "<new_category_key>", "name": "<Category Name>", "budget": <optional_float>},
+  {"type": "ADD_TRANSACTION", "amount": <signed_float>, "category": "<category_key>", "description": "<short description>"}
+]
 \`\`\`
-   - amount is NEGATIVE for expenses, POSITIVE for income
-   - category must be one of the keys listed above
-   - Only include this block when actually recording a transaction
-4. Do NOT include the action block for queries, analysis, or advice — only when recording.
+   - amount is NEGATIVE for expenses, POSITIVE for income.
+   - If adding a transaction to an existing category, it MUST be one of the available keys.
+   - If adding to a NEW category, include the ADD_CATEGORY action first, and use its key in the ADD_TRANSACTION.
+4. IMPORTANT BUDGET RULE: If the user asks to create a category but does NOT specify a monthly budget limit, set the "budget" to 0 in the JSON. However, in your natural language text response, you MUST ask the user to provide a monthly budget limit for this new category.
 5. Keep responses under 120 words unless a detailed analysis is requested.`
 }
 
-function parseAction(text: string): { cleanText: string; action: GeminiAction | null } {
-  const match = text.match(/```action\s*([\s\S]*?)```/m)
-  if (!match) return { cleanText: text.trim(), action: null }
+function parseActions(text: string): { cleanText: string; actions: GeminiAction[] } {
+  const cleanText = text.split('```action')[0].trim()
 
-  const cleanText = text.replace(/```action[\s\S]*?```/m, '').trim()
+  const match = text.match(/```action\s*([\s\S]*?)```/m)
+  if (!match) return { cleanText, actions: [] }
+
   try {
-    const action = JSON.parse(match[1].trim()) as GeminiAction
-    if (action.type === 'ADD_TRANSACTION' && typeof action.amount === 'number' && action.category) {
-      return { cleanText, action }
-    }
+    const parsed = JSON.parse(match[1].trim())
+    const actionsArray = Array.isArray(parsed) ? parsed : [parsed]
+    
+    const validActions = actionsArray.filter((a: Record<string, unknown>) => {
+      if (a.type === 'ADD_TRANSACTION' && typeof a.amount === 'number' && a.category) return true
+      if (a.type === 'ADD_CATEGORY' && a.key && a.name) return true
+      return false
+    }) as GeminiAction[]
+
+    return { cleanText, actions: validActions }
   } catch {
-    // malformed JSON — ignore action
+    return { cleanText, actions: [] }
   }
-  return { cleanText, action: null }
 }
 
 export async function askGemini(
   userMessage: string,
   state: FinancialState,
-  history: Array<{ role: 'user' | 'model'; text: string }>,
+  sessionId: string = 'default-session'
 ): Promise<GeminiResult> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string
-  if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not set')
-
   const systemPrompt = buildSystemPrompt(state, state.language)
+  const history = getSessionHistory(sessionId)
 
-  // Gemini uses "contents" array — inject system prompt as first user turn
   const contents = [
     { role: 'user', parts: [{ text: systemPrompt }] },
-    { role: 'model', parts: [{ text: 'Understood. I am Nivelo AI, ready to help with your finances.' }] },
+    { role: 'model', parts: [{ text: 'Understood. I am Nivelo AI.' }] },
     ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
     { role: 'user', parts: [{ text: userMessage }] },
   ]
 
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+  // Get current session for auth header
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) {
+    throw new Error('Not authenticated')
+  }
+
+  const edgeUrl = getEdgeFunctionUrl()
+
+  const res = await fetch(edgeUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify({
       contents,
-      generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 2048,
+        topP: 0.95,
+      },
     }),
   })
 
   if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Gemini error ${res.status}: ${err}`)
+    const err = await res.json().catch(() => ({})) as Record<string, string>
+    throw new Error(err?.error || res.statusText || 'Edge Function request failed')
   }
 
   const data = await res.json()
   const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-  const { cleanText, action } = parseAction(rawText)
+  
+  const { cleanText, actions } = parseActions(rawText)
 
-  return { text: cleanText, action }
+  history.push({ role: 'user', text: userMessage })
+  history.push({ role: 'model', text: cleanText })
+  saveSessionHistory(sessionId, history)
+
+  return { text: cleanText, actions }
+}
+
+export function clearGeminiSession(sessionId: string = 'default-session') {
+  sessionStorage.removeItem(`nivelo_chat_${sessionId}`)
 }
 
 export function isGeminiEnabled(): boolean {
-  return !!import.meta.env.VITE_GEMINI_API_KEY
+  // Edge Function is always available when Supabase is configured
+  // No need for VITE_GEMINI_API_KEY in frontend anymore
+  return true
 }

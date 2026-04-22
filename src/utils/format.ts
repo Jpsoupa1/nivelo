@@ -1,8 +1,11 @@
+import type { Language } from '../types/finance'
+
 export function formatCurrency(
   value: number,
-  currency = 'USD',
-  locale = 'en-US',
+  language: Language = 'en',
 ): string {
+  const currency = language === 'pt' ? 'BRL' : 'USD'
+  const locale = language === 'pt' ? 'pt-BR' : 'en-US'
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
@@ -11,8 +14,9 @@ export function formatCurrency(
   }).format(value)
 }
 
-export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+export function formatDate(iso: string, language: Language = 'en'): string {
+  const locale = language === 'pt' ? 'pt-BR' : 'en-US'
+  return new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -20,8 +24,9 @@ export function formatDate(iso: string): string {
   }).format(new Date(iso))
 }
 
-export function formatShortDate(iso: string): string {
-  return new Intl.DateTimeFormat('en-US', {
+export function formatShortDate(iso: string, language: Language = 'en'): string {
+  const locale = language === 'pt' ? 'pt-BR' : 'en-US'
+  return new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
   }).format(new Date(iso))

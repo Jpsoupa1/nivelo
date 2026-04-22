@@ -72,7 +72,19 @@ export function financeReducer(
       }
     }
 
+    case 'REMOVE_TRANSACTION': {
+      const transactions = state.transactions.filter((tx) => tx.id !== action.payload)
+      return {
+        ...state,
+        transactions,
+        balance: computeBalance(transactions),
+        cashFlow: computeCashFlow(transactions),
+        lastUpdated: new Date().toISOString(),
+      }
+    }
+
     case 'UPDATE_BALANCE':
+
       return { ...state, balance: action.payload }
 
     case 'SET_PROCESSING':

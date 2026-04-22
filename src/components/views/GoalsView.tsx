@@ -75,8 +75,8 @@ export function GoalsView({ goals, lang, onAdd, onUpdate, onDelete }: GoalsViewP
           </h2>
           <p className="text-xs text-muted mt-0.5">
             {isPT
-              ? `${formatCurrency(totalSaved)} poupado de ${formatCurrency(totalTarget)}`
-              : `${formatCurrency(totalSaved)} saved of ${formatCurrency(totalTarget)}`}
+              ? `${formatCurrency(totalSaved, lang)} poupado de ${formatCurrency(totalTarget, lang)}`
+              : `${formatCurrency(totalSaved, lang)} saved of ${formatCurrency(totalTarget, lang)}`}
           </p>
         </div>
         <button
@@ -228,9 +228,9 @@ export function GoalsView({ goals, lang, onAdd, onUpdate, onDelete }: GoalsViewP
                   {/* Progress bar */}
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
-                      <span className="text-xs font-mono text-white">{formatCurrency(goal.savedAmount)}</span>
+                      <span className="text-xs font-mono text-white">{formatCurrency(goal.savedAmount, lang)}</span>
                       <span className="text-xs text-muted">{Math.round(pct)}%</span>
-                      <span className="text-xs font-mono text-muted">{formatCurrency(goal.targetAmount)}</span>
+                      <span className="text-xs font-mono text-muted">{formatCurrency(goal.targetAmount, lang)}</span>
                     </div>
                     <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden">
                       <motion.div
@@ -247,8 +247,8 @@ export function GoalsView({ goals, lang, onAdd, onUpdate, onDelete }: GoalsViewP
                   {needed !== null && needed > 0 && (
                     <p className="text-[11px] text-muted">
                       {isPT
-                        ? `Poupe ${formatCurrency(needed)}/mês para atingir no prazo`
-                        : `Save ${formatCurrency(needed)}/mo to reach by deadline`}
+                        ? `Poupe ${formatCurrency(needed, lang)}/mês para atingir no prazo`
+                        : `Save ${formatCurrency(needed, lang)}/mo to reach by deadline`}
                     </p>
                   )}
 

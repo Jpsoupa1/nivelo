@@ -1,4 +1,5 @@
-import { useReducer, startTransition, useState, useEffect } from 'react'
+import { useReducer, startTransition, useState, useEffect, useRef, useCallback } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { financeReducer, initialState, DEFAULT_CATEGORIES } from './store/financeReducer'
 import { Sidebar } from './components/layout/Sidebar'
@@ -11,6 +12,7 @@ import { GoalsView } from './components/views/GoalsView'
 import { AuthView } from './components/views/AuthView'
 import { LandingPage } from './components/views/LandingPage'
 import { buildTransaction } from './services/nlpParser'
+import { v4 as uuid } from './utils/uuid'
 import {
   fetchTransactions,
   fetchCategories,
@@ -30,9 +32,29 @@ import {
   deleteGoal,
 } from './services/database'
 import { getPendingRecurring } from './services/recurringEngine'
-import type { Transaction, Category, RecurringTransaction, Goal, AppView } from './types/finance'
+import type { Transaction, Category, RecurringTransaction, Goal, AppView, ChatMessage } from './types/finance'
 
 type Screen = 'landing' | 'login' | 'signup'
+
+/* ── Lightweight error toast ─────────────────────────────── */
+function ErrorToast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 5000)
+    return () => clearTimeout(t)
+  }, [onDismiss])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="fixed top-4 right-4 z-50 max-w-sm px-4 py-3 rounded-xl bg-red-500/15 border border-red-500/25 text-red-300 text-sm shadow-xl backdrop-blur-md"
+    >
+      <p className="font-medium text-xs uppercase tracking-wider text-red-400 mb-0.5">Error</p>
+      <p>{message}</p>
+    </motion.div>
+  )
+}
 
 function FinanceApp() {
   const { user, isLoading: authLoading } = useAuth()
@@ -42,45 +64,89 @@ function FinanceApp() {
   const [dataLoading, setDataLoading] = useState(false)
   const [recurrings, setRecurrings] = useState<RecurringTransaction[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // Fix #2: Guard to prevent duplicate recurring fire in StrictMode
+  const recurringFiredRef = useRef(false)
+  const dataLoadedRef = useRef(false)
+
+  const showError = useCallback((msg: string) => {
+    setErrorMsg(msg)
+    console.error('[Nivelo]', msg)
+  }, [])
 
   // Load user data on login
   useEffect(() => {
-    if (!user) return
+    if (!user) {
+      // Reset guard when user logs out
+      recurringFiredRef.current = false
+      dataLoadedRef.current = false
+      return
+    }
+
+    // Prevent double-fetch in StrictMode
+    if (dataLoadedRef.current) return
+    dataLoadedRef.current = true
 
     setDataLoading(true)
     Promise.all([fetchTransactions(), fetchCategories(), fetchRecurring(), fetchGoals()])
       .then(async ([transactions, categories, recs, fetchedGoals]) => {
-        const finalCategories = categories.length === 0
-          ? (await seedDefaultCategories(DEFAULT_CATEGORIES), DEFAULT_CATEGORIES)
-          : categories
+        let finalCategories = categories
+        if (categories.length === 0) {
+          const withNewIds = DEFAULT_CATEGORIES.map((cat) => ({ ...cat, id: `cat-${uuid()}` }))
+          await seedDefaultCategories(withNewIds)
+          finalCategories = withNewIds
+        }
 
         dispatch({ type: 'LOAD_DATA', payload: { transactions, categories: finalCategories } })
         setRecurrings(recs)
         setGoals(fetchedGoals)
 
-        // Fire any pending recurring transactions for the current month
-        const now = new Date()
-        const pending = getPendingRecurring(recs, transactions, now.getMonth() + 1, now.getFullYear())
-        for (const tx of pending) {
-          dispatch({ type: 'ADD_TRANSACTION', payload: tx })
-          await insertTransaction(tx)
+        // Fix #2: Fire pending recurring only once
+        if (!recurringFiredRef.current) {
+          recurringFiredRef.current = true
+          const now = new Date()
+          const pending = getPendingRecurring(recs, transactions, now.getMonth() + 1, now.getFullYear())
+          for (const tx of pending) {
+            try {
+              await insertTransaction(tx)
+              dispatch({ type: 'ADD_TRANSACTION', payload: tx })
+            } catch (err) {
+              showError(`Failed to create recurring "${tx.description}": ${err instanceof Error ? err.message : 'Unknown error'}`)
+            }
+          }
         }
       })
-      .catch(console.error)
+      .catch((err) => showError(`Failed to load data: ${err instanceof Error ? err.message : 'Unknown error'}`))
       .finally(() => setDataLoading(false))
-  }, [user])
+  }, [user, showError])
+
+  // Fix #1: All optimistic operations now have try/catch with rollback
 
   async function handleTransaction(tx: ReturnType<typeof buildTransaction>) {
     if (!tx) return
     startTransition(() => {
       dispatch({ type: 'ADD_TRANSACTION', payload: tx })
     })
-    await insertTransaction(tx)
+    try {
+      await insertTransaction(tx)
+    } catch (err) {
+      // Rollback: remove the optimistically added transaction
+      dispatch({ type: 'REMOVE_TRANSACTION', payload: tx.id })
+      showError(`Failed to save transaction: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleUpdateTransaction(tx: Transaction) {
+    const previous = state.transactions.find((t) => t.id === tx.id)
     dispatch({ type: 'UPDATE_TRANSACTION', payload: tx })
-    await updateTransaction(tx)
+    try {
+      await updateTransaction(tx)
+    } catch (err) {
+      if (previous) dispatch({ type: 'UPDATE_TRANSACTION', payload: previous })
+      showError(`Failed to update transaction: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   function handleProcessing(v: boolean) {
@@ -89,22 +155,44 @@ function FinanceApp() {
 
   async function handleAutoCreateCategory(cat: Category) {
     dispatch({ type: 'ADD_CATEGORY', payload: cat })
-    await insertCategory(cat)
+    try {
+      await insertCategory(cat)
+    } catch (err) {
+      dispatch({ type: 'DELETE_CATEGORY', payload: cat.id })
+      showError(`Failed to create category: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleAddCategory(cat: Category) {
     dispatch({ type: 'ADD_CATEGORY', payload: cat })
-    await insertCategory(cat)
+    try {
+      await insertCategory(cat)
+    } catch (err) {
+      dispatch({ type: 'DELETE_CATEGORY', payload: cat.id })
+      showError(`Failed to create category: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleUpdateCategory(cat: Category) {
+    const previous = state.categories.find((c) => c.id === cat.id)
     dispatch({ type: 'UPDATE_CATEGORY', payload: cat })
-    await updateCategory(cat)
+    try {
+      await updateCategory(cat)
+    } catch (err) {
+      if (previous) dispatch({ type: 'UPDATE_CATEGORY', payload: previous })
+      showError(`Failed to update category: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleDeleteCategory(id: string) {
+    const previous = state.categories.find((c) => c.id === id)
     dispatch({ type: 'DELETE_CATEGORY', payload: id })
-    await deleteCategory(id)
+    try {
+      await deleteCategory(id)
+    } catch (err) {
+      if (previous) dispatch({ type: 'ADD_CATEGORY', payload: previous })
+      showError(`Failed to delete category: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   function handleSetLanguage(lang: import('./types/finance').Language) {
@@ -113,32 +201,66 @@ function FinanceApp() {
 
   async function handleAddRecurring(r: RecurringTransaction) {
     setRecurrings((prev) => [...prev, r])
-    await insertRecurring(r)
+    try {
+      await insertRecurring(r)
+    } catch (err) {
+      setRecurrings((prev) => prev.filter((x) => x.id !== r.id))
+      showError(`Failed to create recurring: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleUpdateRecurring(r: RecurringTransaction) {
+    const previous = recurrings.find((x) => x.id === r.id)
     setRecurrings((prev) => prev.map((x) => x.id === r.id ? r : x))
-    await updateRecurring(r)
+    try {
+      await updateRecurring(r)
+    } catch (err) {
+      if (previous) setRecurrings((prev) => prev.map((x) => x.id === r.id ? previous : x))
+      showError(`Failed to update recurring: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleDeleteRecurring(id: string) {
+    const previous = recurrings.find((x) => x.id === id)
     setRecurrings((prev) => prev.filter((x) => x.id !== id))
-    await deleteRecurring(id)
+    try {
+      await deleteRecurring(id)
+    } catch (err) {
+      if (previous) setRecurrings((prev) => [...prev, previous])
+      showError(`Failed to delete recurring: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleAddGoal(g: Goal) {
     setGoals((prev) => [...prev, g])
-    await insertGoal(g)
+    try {
+      await insertGoal(g)
+    } catch (err) {
+      setGoals((prev) => prev.filter((x) => x.id !== g.id))
+      showError(`Failed to create goal: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleUpdateGoal(g: Goal) {
+    const previous = goals.find((x) => x.id === g.id)
     setGoals((prev) => prev.map((x) => x.id === g.id ? g : x))
-    await updateGoal(g)
+    try {
+      await updateGoal(g)
+    } catch (err) {
+      if (previous) setGoals((prev) => prev.map((x) => x.id === g.id ? previous : x))
+      showError(`Failed to update goal: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   async function handleDeleteGoal(id: string) {
+    const previous = goals.find((x) => x.id === id)
     setGoals((prev) => prev.filter((x) => x.id !== id))
-    await deleteGoal(id)
+    try {
+      await deleteGoal(id)
+    } catch (err) {
+      if (previous) setGoals((prev) => [...prev, previous])
+      showError(`Failed to delete goal: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   function handleSetPeriod(month: number, year: number) {
@@ -172,6 +294,11 @@ function FinanceApp() {
 
   return (
     <div className="min-h-screen bg-primary text-white flex overflow-hidden" style={{ height: '100vh' }}>
+      {/* Error toast */}
+      <AnimatePresence>
+        {errorMsg && <ErrorToast message={errorMsg} onDismiss={() => setErrorMsg(null)} />}
+      </AnimatePresence>
+
       <Sidebar
         activeView={activeView}
         onNavigate={setActiveView}
@@ -198,6 +325,9 @@ function FinanceApp() {
             onTransaction={handleTransaction}
             onProcessing={handleProcessing}
             onAutoCreateCategory={handleAutoCreateCategory}
+            onUpdateCategory={handleUpdateCategory}
+            chatMessages={chatMessages}
+            onSetChatMessages={setChatMessages}
           />
         )}
         {activeView === 'categories' && (
@@ -223,9 +353,17 @@ function FinanceApp() {
             categories={state.categories}
             lang={state.language}
             onImport={async (txs) => {
+              const failed: string[] = []
               for (const tx of txs) {
-                dispatch({ type: 'ADD_TRANSACTION', payload: tx })
-                await insertTransaction(tx)
+                try {
+                  await insertTransaction(tx)
+                  dispatch({ type: 'ADD_TRANSACTION', payload: tx })
+                } catch {
+                  failed.push(tx.description)
+                }
+              }
+              if (failed.length > 0) {
+                showError(`Failed to import ${failed.length} transaction(s): ${failed.slice(0, 3).join(', ')}${failed.length > 3 ? '…' : ''}`)
               }
             }}
           />

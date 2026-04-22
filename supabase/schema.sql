@@ -1,5 +1,5 @@
 -- ============================================================
--- AXIS Fintech — Supabase Schema
+-- Nivelo — Supabase Schema
 -- Run this in the Supabase SQL Editor (Dashboard > SQL Editor)
 -- ============================================================
 

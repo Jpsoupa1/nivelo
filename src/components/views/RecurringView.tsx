@@ -233,7 +233,7 @@ export function RecurringView({ recurrings, categories, lang, onAdd, onUpdate, o
                   <span className={`font-mono text-sm font-semibold shrink-0 ${
                     isNeg ? 'text-red-400' : 'text-emerald-400'
                   }`}>
-                    {isNeg ? '−' : '+'}{formatCurrency(Math.abs(r.amount))}
+                    {isNeg ? '−' : '+'}{formatCurrency(Math.abs(r.amount), lang)}
                   </span>
 
                   {/* Toggle */}

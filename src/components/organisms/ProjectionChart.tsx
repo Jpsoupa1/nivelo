@@ -109,7 +109,7 @@ export function ProjectionChart({ balance, transactions, recurrings }: Projectio
               tick={{ fill: '#8B949E', fontSize: 9 }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+              tickFormatter={(v) => Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))}
               width={32}
             />
             <Tooltip content={<CustomTooltip />} />
