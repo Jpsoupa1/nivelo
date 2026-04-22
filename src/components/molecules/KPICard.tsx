@@ -21,7 +21,7 @@ export function KPICard({
   icon,
   trend,
   isLoading = false,
-  accentColor = '#58A6FF',
+  accentColor = '#E8A835',
   language = 'en',
 }: KPICardProps) {
   const trendPositive = trend !== undefined && trend >= 0

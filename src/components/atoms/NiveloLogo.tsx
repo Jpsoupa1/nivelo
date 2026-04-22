@@ -45,7 +45,7 @@ export function NiveloLogoIcon({ size = 28 }: NiveloLogoProps) {
         width={barW}
         height={bar3H}
         rx={r}
-        fill="#58A6FF"
+        fill="#E8A835"
       />
     </svg>
   )

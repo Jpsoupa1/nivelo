@@ -71,7 +71,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   const isFuture = payload[0]?.payload?.type === 'future'
   return (
-    <div className="bg-[#161B22] border border-white/[0.08] rounded-lg px-3 py-2 text-xs shadow-xl">
+    <div className="bg-[#14122B] border border-white/[0.08] rounded-lg px-3 py-2 text-xs shadow-xl">
       <p className="text-muted mb-0.5">{label} {isFuture ? '(projected)' : ''}</p>
       <p className="font-mono font-semibold text-white">{formatCurrency(payload[0].value)}</p>
     </div>
@@ -94,19 +94,19 @@ export function ProjectionChart({ balance, transactions, recurrings }: Projectio
           <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#58A6FF" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#58A6FF" stopOpacity={0.02} />
+                <stop offset="5%"  stopColor="#7C5CFC" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#7C5CFC" stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <XAxis
               dataKey="month"
-              tick={{ fill: '#8B949E', fontSize: 10 }}
+              tick={{ fill: '#7B72A8', fontSize: 10 }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
               domain={[min * 0.95, max * 1.05]}
-              tick={{ fill: '#8B949E', fontSize: 9 }}
+              tick={{ fill: '#7B72A8', fontSize: 9 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v) => Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(Math.round(v))}
@@ -116,7 +116,7 @@ export function ProjectionChart({ balance, transactions, recurrings }: Projectio
             <Area
               type="monotone"
               dataKey="projected"
-              stroke="#58A6FF"
+              stroke="#7C5CFC"
               strokeWidth={2}
               fill="url(#projGrad)"
               strokeDasharray="0"
@@ -128,8 +128,8 @@ export function ProjectionChart({ balance, transactions, recurrings }: Projectio
                     cx={props.cx}
                     cy={props.cy}
                     r={3}
-                    fill={isFuture ? 'transparent' : '#58A6FF'}
-                    stroke="#58A6FF"
+                    fill={isFuture ? 'transparent' : '#7C5CFC'}
+                    stroke="#7C5CFC"
                     strokeWidth={isFuture ? 1.5 : 0}
                     strokeDasharray={isFuture ? '3 2' : '0'}
                   />

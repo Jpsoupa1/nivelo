@@ -352,7 +352,7 @@ export function CategoriesView({
       <div className="flex-1 glass rounded-xl overflow-hidden flex flex-col min-h-0">
         <div className="overflow-y-auto flex-1">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 z-10" style={{ background: '#1C2128' }}>
+            <thead className="sticky top-0 z-10" style={{ background: '#1B1736' }}>
               <tr className="border-b border-white/[0.06]">
                 {s.cols.map((h, i) => (
                   <th

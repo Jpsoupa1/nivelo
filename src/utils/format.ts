@@ -34,15 +34,15 @@ export function formatShortDate(iso: string, language: Language = 'en'): string 
 
 export function categoryColor(category: string): string {
   const map: Record<string, string> = {
-    FOOD: '#3FB950',
-    TRANSPORT: '#D29922',
-    HOUSING: '#58A6FF',
-    HEALTH: '#F78166',
-    ENTERTAINMENT: '#BC8CFF',
-    SALARY: '#3FB950',
-    INVESTMENT: '#58A6FF',
-    UTILITIES: '#79C0FF',
-    OTHER: '#8B949E',
+    FOOD: '#34D399',
+    TRANSPORT: '#FBBF24',
+    HOUSING: '#A78BFA',
+    HEALTH: '#FB7185',
+    ENTERTAINMENT: '#38BDF8',
+    SALARY: '#34D399',
+    INVESTMENT: '#E8A835',
+    UTILITIES: '#818CF8',
+    OTHER: '#8B82A8',
   }
-  return map[category] ?? '#8B949E'
+  return map[category] ?? '#8B82A8'
 }

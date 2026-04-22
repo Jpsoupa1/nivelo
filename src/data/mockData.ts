@@ -3,21 +3,21 @@ import type { Transaction, Category, CashFlowPoint } from '../types/finance'
 export const INITIAL_BALANCE = 24_850.00
 
 export const CATEGORY_COLORS = [
-  '#58A6FF', '#3FB950', '#D29922', '#F78166',
-  '#BC8CFF', '#79C0FF', '#FF7B72', '#FFA657',
-  '#56D364', '#E3B341',
+  '#E8A835', '#34D399', '#A78BFA', '#FB7185',
+  '#38BDF8', '#F59E0B', '#6EE7B7', '#F472B6',
+  '#818CF8', '#FBBF24',
 ]
 
 export const INITIAL_CATEGORIES: Category[] = [
-  { id: 'cat-food',    name: 'Food & Dining',  key: 'FOOD',          color: '#3FB950', budgeted: 600,  icon: 'UtensilsCrossed' },
-  { id: 'cat-tran',    name: 'Transport',       key: 'TRANSPORT',     color: '#D29922', budgeted: 300,  icon: 'Car' },
-  { id: 'cat-hous',    name: 'Housing',         key: 'HOUSING',       color: '#58A6FF', budgeted: 2500, icon: 'Home' },
-  { id: 'cat-heal',    name: 'Health',          key: 'HEALTH',        color: '#F78166', budgeted: 200,  icon: 'Heart' },
-  { id: 'cat-ent',     name: 'Entertainment',   key: 'ENTERTAINMENT', color: '#BC8CFF', budgeted: 150,  icon: 'Tv' },
-  { id: 'cat-sal',     name: 'Salary',          key: 'SALARY',        color: '#3FB950', budgeted: 0,    icon: 'Banknote' },
-  { id: 'cat-inv',     name: 'Investment',      key: 'INVESTMENT',    color: '#58A6FF', budgeted: 0,    icon: 'TrendingUp' },
-  { id: 'cat-util',    name: 'Utilities',       key: 'UTILITIES',     color: '#79C0FF', budgeted: 250,  icon: 'Zap' },
-  { id: 'cat-other',   name: 'Other',           key: 'OTHER',         color: '#8B949E', budgeted: 100,  icon: 'MoreHorizontal' },
+  { id: 'cat-food',    name: 'Food & Dining',  key: 'FOOD',          color: '#34D399', budgeted: 600,  icon: 'UtensilsCrossed' },
+  { id: 'cat-tran',    name: 'Transport',       key: 'TRANSPORT',     color: '#FBBF24', budgeted: 300,  icon: 'Car' },
+  { id: 'cat-hous',    name: 'Housing',         key: 'HOUSING',       color: '#A78BFA', budgeted: 2500, icon: 'Home' },
+  { id: 'cat-heal',    name: 'Health',          key: 'HEALTH',        color: '#FB7185', budgeted: 200,  icon: 'Heart' },
+  { id: 'cat-ent',     name: 'Entertainment',   key: 'ENTERTAINMENT', color: '#38BDF8', budgeted: 150,  icon: 'Tv' },
+  { id: 'cat-sal',     name: 'Salary',          key: 'SALARY',        color: '#34D399', budgeted: 0,    icon: 'Banknote' },
+  { id: 'cat-inv',     name: 'Investment',      key: 'INVESTMENT',    color: '#E8A835', budgeted: 0,    icon: 'TrendingUp' },
+  { id: 'cat-util',    name: 'Utilities',       key: 'UTILITIES',     color: '#818CF8', budgeted: 250,  icon: 'Zap' },
+  { id: 'cat-other',   name: 'Other',           key: 'OTHER',         color: '#8B82A8', budgeted: 100,  icon: 'MoreHorizontal' },
 ]
 
 export const MOCK_TRANSACTIONS: Transaction[] = [

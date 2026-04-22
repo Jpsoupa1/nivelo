@@ -46,9 +46,9 @@ export function CashFlowChart({ data }: CashFlowChartProps) {
         </h3>
         <div className="flex items-center gap-4">
           {[
-            { label: 'Income', color: '#3FB950' },
-            { label: 'Expenses', color: '#F78166' },
-            { label: 'Net', color: '#58A6FF' },
+            { label: 'Income', color: '#34D399' },
+            { label: 'Expenses', color: '#FB7185' },
+            { label: 'Net', color: '#E8A835' },
           ].map(({ label, color }) => (
             <div key={label} className="flex items-center gap-1.5">
               <span
@@ -66,16 +66,16 @@ export function CashFlowChart({ data }: CashFlowChartProps) {
           <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="gradIncome" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3FB950" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#3FB950" stopOpacity={0} />
+                <stop offset="5%" stopColor="#34D399" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#34D399" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradExpenses" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#F78166" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#F78166" stopOpacity={0} />
+                <stop offset="5%" stopColor="#FB7185" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#FB7185" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradNet" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#58A6FF" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#58A6FF" stopOpacity={0} />
+                <stop offset="5%" stopColor="#E8A835" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#E8A835" stopOpacity={0} />
               </linearGradient>
             </defs>
 
@@ -83,12 +83,12 @@ export function CashFlowChart({ data }: CashFlowChartProps) {
 
             <XAxis
               dataKey="month"
-              tick={{ fill: '#8B949E', fontSize: 11 }}
+              tick={{ fill: '#8B82A8', fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
-              tick={{ fill: '#8B949E', fontSize: 11 }}
+              tick={{ fill: '#8B82A8', fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
@@ -100,29 +100,29 @@ export function CashFlowChart({ data }: CashFlowChartProps) {
             <Area
               type="monotone"
               dataKey="income"
-              stroke="#3FB950"
+              stroke="#34D399"
               strokeWidth={1.5}
               fill="url(#gradIncome)"
               dot={false}
-              activeDot={{ r: 4, fill: '#3FB950' }}
+              activeDot={{ r: 4, fill: '#34D399' }}
             />
             <Area
               type="monotone"
               dataKey="expenses"
-              stroke="#F78166"
+              stroke="#FB7185"
               strokeWidth={1.5}
               fill="url(#gradExpenses)"
               dot={false}
-              activeDot={{ r: 4, fill: '#F78166' }}
+              activeDot={{ r: 4, fill: '#FB7185' }}
             />
             <Area
               type="monotone"
               dataKey="net"
-              stroke="#58A6FF"
+              stroke="#E8A835"
               strokeWidth={2}
               fill="url(#gradNet)"
               dot={false}
-              activeDot={{ r: 4, fill: '#58A6FF' }}
+              activeDot={{ r: 4, fill: '#E8A835' }}
             />
           </AreaChart>
         </ResponsiveContainer>

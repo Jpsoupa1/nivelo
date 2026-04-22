@@ -4,19 +4,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#0D1117',
-        surface: '#161B22',
-        'surface-2': '#1C2128',
-        accent: '#58A6FF',
-        success: '#238636',
-        warning: '#D29922',
-        danger: '#DA3633',
-        muted: '#8B949E',
+        primary: '#0C0A1A',
+        surface: '#14112A',
+        'surface-2': '#1B1736',
+        accent: '#E8A835',
+        success: '#34D399',
+        warning: '#FB923C',
+        danger: '#FB7185',
+        muted: '#8B82A8',
         border: 'rgba(255,255,255,0.06)',
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       backdropBlur: {
         glass: '12px',

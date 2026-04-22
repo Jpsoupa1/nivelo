@@ -228,7 +228,7 @@ export function ImportView({ categories, lang, onImport }: ImportViewProps) {
                     className="appearance-none bg-white/[0.04] border border-white/[0.08] rounded-lg pl-2 pr-6 py-1 text-[11px] text-white focus:outline-none focus:border-accent/40 transition-colors cursor-pointer"
                   >
                     {categories.map((c) => (
-                      <option key={c.id} value={c.key} className="bg-[#161B22]">{c.name}</option>
+                      <option key={c.id} value={c.key} className="bg-[#14112A]">{c.name}</option>
                     ))}
                   </select>
                   <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />

@@ -18,7 +18,7 @@ export function TransactionRow({ transaction, categories, onUpdate, index }: Tra
 
   const isDebit = transaction.amount < 0
   const cat = categories.find((c) => c.key === transaction.category)
-  const color = cat?.color ?? '#8B949E'
+  const color = cat?.color ?? '#8B82A8'
   const label = cat?.name ?? transaction.category
 
   function handleBlur() {

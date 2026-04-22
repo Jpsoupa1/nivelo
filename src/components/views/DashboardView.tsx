@@ -129,7 +129,7 @@ export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPer
           subtitle={s.allAccounts}
           icon={<Wallet size={16} />}
           isLoading={state.isProcessing}
-          accentColor="#58A6FF"
+          accentColor="#A78BFA"
           language={state.language}
         />
       </div>
@@ -141,7 +141,7 @@ export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPer
           value={lastTx ? Math.abs(lastTx.amount) : 0}
           subtitle={lastTx?.description ?? '—'}
           icon={<TrendingDown size={16} />}
-          accentColor={lastTx && lastTx.amount < 0 ? '#F78166' : '#3FB950'}
+          accentColor={lastTx && lastTx.amount < 0 ? '#FB7185' : '#34D399'}
           isLoading={state.isProcessing}
           language={state.language}
         />
@@ -150,7 +150,7 @@ export function DashboardView({ state, recurrings, onUpdateTransaction, onSetPer
           value={monthlyIncome}
           subtitle={s.thisMonth}
           icon={<TrendingUp size={16} />}
-          accentColor="#3FB950"
+          accentColor="#34D399"
           isLoading={state.isProcessing}
           language={state.language}
         />

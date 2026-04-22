@@ -13,9 +13,9 @@ interface GoalsViewProps {
   onDelete: (id: string) => void
 }
 
-const GOAL_COLORS = ['#58A6FF', '#3FB950', '#D29922', '#BC8CFF', '#F78166', '#79C0FF']
+const GOAL_COLORS = ['#E8A835', '#34D399', '#A78BFA', '#38BDF8', '#FB7185', '#818CF8']
 
-const EMPTY_FORM = { name: '', targetAmount: 0, savedAmount: 0, deadline: '', color: '#58A6FF' }
+const EMPTY_FORM = { name: '', targetAmount: 0, savedAmount: 0, deadline: '', color: '#E8A835' }
 
 export function GoalsView({ goals, lang, onAdd, onUpdate, onDelete }: GoalsViewProps) {
   const [showForm, setShowForm] = useState(false)
