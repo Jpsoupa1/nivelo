@@ -1,9 +1,16 @@
 import type { RecurringTransaction, Transaction } from '../types/finance'
-import { v4 as uuid } from '../utils/uuid'
+
+function recurringTxId(recurringId: string, year: number, month: number): string {
+  return `txn-rec-${recurringId}-${year}-${String(month).padStart(2, '0')}`
+}
 
 /**
- * Given the active recurring rules and the existing transactions for a month,
- * returns any Transaction objects that should be created (not yet present).
+ * Returns transactions that should be created for the given month/year.
+ *
+ * Deduplication uses a deterministic ID (recurringId + year + month) so:
+ * - Two rules with the same description never collide
+ * - Renaming a rule's description doesn't cause double-fires
+ * - Timezone-safe: fireDate is always built in UTC
  */
 export function getPendingRecurring(
   recurrings: RecurringTransaction[],
@@ -12,40 +19,27 @@ export function getPendingRecurring(
   year: number,
 ): Transaction[] {
   const today = new Date()
+  const existingIds = new Set(existingTxs.map((tx) => tx.id))
   const pending: Transaction[] = []
 
   for (const r of recurrings) {
     if (!r.active) continue
 
-    // Determine the fire date for this month
-    const fireDate = new Date(year, month - 1, r.dayOfMonth)
+    const txId = recurringTxId(r.id, year, month)
+    if (existingIds.has(txId)) continue
 
-    // Don't fire future dates
+    const fireDate = new Date(Date.UTC(year, month - 1, r.dayOfMonth))
     if (fireDate > today) continue
 
-    // Check if already fired this month (same recurring description + month/year)
-    const alreadyFired = existingTxs.some((tx) => {
-      const d = new Date(tx.date)
-      return (
-        tx.description === r.description &&
-        tx.category === r.category &&
-        d.getMonth() + 1 === month &&
-        d.getFullYear() === year &&
-        tx.source === 'recurring'
-      )
+    pending.push({
+      id: txId,
+      amount: r.amount,
+      category: r.category,
+      description: r.description,
+      date: fireDate.toISOString(),
+      source: 'recurring',
+      status: 'confirmed',
     })
-
-    if (!alreadyFired) {
-      pending.push({
-        id: `txn-rec-${uuid()}`,
-        amount: r.amount,
-        category: r.category,
-        description: r.description,
-        date: fireDate.toISOString(),
-        source: 'recurring' as Transaction['source'],
-        status: 'confirmed',
-      })
-    }
   }
 
   return pending

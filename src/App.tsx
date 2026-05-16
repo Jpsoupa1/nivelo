@@ -32,7 +32,7 @@ import {
   deleteGoal,
 } from './services/database'
 import { getPendingRecurring } from './services/recurringEngine'
-import type { Transaction, Category, RecurringTransaction, Goal, AppView, ChatMessage } from './types/finance'
+import type { Transaction, Category, RecurringTransaction, Goal, AppView, ChatMessage, Language } from './types/finance'
 
 type Screen = 'landing' | 'login' | 'signup'
 
@@ -67,8 +67,7 @@ function FinanceApp() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // Fix #2: Guard to prevent duplicate recurring fire in StrictMode
-  const recurringFiredRef = useRef(false)
+  const lastFiredRef = useRef<{ month: number; year: number } | null>(null)
   const dataLoadedRef = useRef(false)
 
   const showError = useCallback((msg: string) => {
@@ -79,8 +78,7 @@ function FinanceApp() {
   // Load user data on login
   useEffect(() => {
     if (!user) {
-      // Reset guard when user logs out
-      recurringFiredRef.current = false
+      lastFiredRef.current = null
       dataLoadedRef.current = false
       return
     }
@@ -103,11 +101,13 @@ function FinanceApp() {
         setRecurrings(recs)
         setGoals(fetchedGoals)
 
-        // Fix #2: Fire pending recurring only once
-        if (!recurringFiredRef.current) {
-          recurringFiredRef.current = true
-          const now = new Date()
-          const pending = getPendingRecurring(recs, transactions, now.getMonth() + 1, now.getFullYear())
+        // Backfill: fire pending recurring for the last 3 months so missed months are caught
+        const now = new Date()
+        for (let i = 2; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+          const month = d.getMonth() + 1
+          const year = d.getFullYear()
+          const pending = getPendingRecurring(recs, transactions, month, year)
           for (const tx of pending) {
             try {
               await insertTransaction(tx)
@@ -117,12 +117,41 @@ function FinanceApp() {
             }
           }
         }
+        lastFiredRef.current = { month: now.getMonth() + 1, year: now.getFullYear() }
       })
       .catch((err) => showError(`Failed to load data: ${err instanceof Error ? err.message : 'Unknown error'}`))
       .finally(() => setDataLoading(false))
   }, [user, showError])
 
-  // Fix #1: All optimistic operations now have try/catch with rollback
+  // Re-run recurring engine when the month rolls over (handles sessions kept open across month boundary)
+  useEffect(() => {
+    if (!user) return
+
+    async function handleVisibility() {
+      if (document.visibilityState !== 'visible') return
+      const now = new Date()
+      const cur = { month: now.getMonth() + 1, year: now.getFullYear() }
+      const last = lastFiredRef.current
+      if (last && last.month === cur.month && last.year === cur.year) return
+
+      try {
+        const [txs, recs] = await Promise.all([fetchTransactions(), fetchRecurring()])
+        const pending = getPendingRecurring(recs, txs, cur.month, cur.year)
+        for (const tx of pending) {
+          try {
+            await insertTransaction(tx)
+            dispatch({ type: 'ADD_TRANSACTION', payload: tx })
+          } catch { /* silent — dedup handles retries */ }
+        }
+        lastFiredRef.current = cur
+      } catch { /* silent — will retry next visibility event */ }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [user])
+
+  // All optimistic operations have try/catch with rollback
 
   async function handleTransaction(tx: ReturnType<typeof buildTransaction>) {
     if (!tx) return
@@ -151,16 +180,6 @@ function FinanceApp() {
 
   function handleProcessing(v: boolean) {
     dispatch({ type: 'SET_PROCESSING', payload: v })
-  }
-
-  async function handleAutoCreateCategory(cat: Category) {
-    dispatch({ type: 'ADD_CATEGORY', payload: cat })
-    try {
-      await insertCategory(cat)
-    } catch (err) {
-      dispatch({ type: 'DELETE_CATEGORY', payload: cat.id })
-      showError(`Failed to create category: ${err instanceof Error ? err.message : 'Unknown error'}`)
-    }
   }
 
   async function handleAddCategory(cat: Category) {
@@ -195,7 +214,7 @@ function FinanceApp() {
     }
   }
 
-  function handleSetLanguage(lang: import('./types/finance').Language) {
+  function handleSetLanguage(lang: Language) {
     dispatch({ type: 'SET_LANGUAGE', payload: lang })
   }
 
@@ -324,7 +343,7 @@ function FinanceApp() {
             state={state}
             onTransaction={handleTransaction}
             onProcessing={handleProcessing}
-            onAutoCreateCategory={handleAutoCreateCategory}
+            onAutoCreateCategory={handleAddCategory}
             onUpdateCategory={handleUpdateCategory}
             chatMessages={chatMessages}
             onSetChatMessages={setChatMessages}
